@@ -103,7 +103,7 @@ add_test(NAME unit_tests COMMAND unit_tests)
 
 # Platform specific settings
 if(WIN32)
-    # Windows Dependencies
+    # Windows Dependencies (MSVC prebuilt)
     # GLFW
     set(GLFW_LIB_DIR "${CMAKE_SOURCE_DIR}/Dependencies/GLFW/lib-vc2022")
     # FreeGLUT
@@ -153,9 +153,11 @@ if(WIN32)
     )
 
     # Warning flags for MSVC
-    target_compile_options(TrafficLib PRIVATE /W4 /permissive-)
-    target_compile_options(TrafficSimulator PRIVATE /W4 /permissive-)
-    target_compile_options(unit_tests PRIVATE /W4 /permissive-)
+    if(MSVC)
+        target_compile_options(TrafficLib PRIVATE /W4 /permissive-)
+        target_compile_options(TrafficSimulator PRIVATE /W4 /permissive-)
+        target_compile_options(unit_tests PRIVATE /W4 /permissive-)
+    endif()
 
 elseif(UNIX AND NOT APPLE)
     # Linux Dependencies
