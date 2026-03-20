@@ -47,6 +47,10 @@ public:
    bool operator == (const Intersection i);
    /** @brief Update the intersection lights using RL. */
    void update();
+   /** @brief Set a new operator for this intersection. */
+   void setOperator(std::shared_ptr<IntersectionOperator> newOp);
+   /** @brief Evaluate heuristic fallback. */
+   int computeHeuristicAction() const;
 
 protected:
 
@@ -72,6 +76,8 @@ private:
    std::vector<int> lastState;
    /** Last action taken */
    int lastAction;
+   /** Last cumulative delay */
+   double lastDelay;
    /** Time of the last traffic light switch */
    clock_t lastSwitchTime;
 /**@}*/

@@ -8,7 +8,8 @@
 
 enum LearningType {
       Q_LEARNING,
-      DQN
+      DQN,
+      HEURISTIC
    };
 
 namespace constants {
@@ -96,7 +97,7 @@ namespace constants {
 /** @defgroup Learning parameters */
 /**@{*/
    /** Learning type. */
-   constexpr LearningType learningType{ LearningType::Q_LEARNING };
+   extern LearningType learningType;
    /** Size of the standardized state vector. */
    extern int stateSize;
 /**@}*/

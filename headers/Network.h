@@ -29,8 +29,13 @@ protected:
 private:
    /** @brief Helper to initialize the window and ImGui. */
    GLFWwindow* initWindowAndImGui();
+   /** Operators */
+   std::shared_ptr<IntersectionOperator> qLearningOp;
+   std::shared_ptr<IntersectionOperator> deepRLOp;
    /** Global Intersection Operator. */
    std::shared_ptr<IntersectionOperator> globalOperator;
+   /** Is the simulation paused? */
+   bool isPaused = false;
    /** Road Map. */
    Map map;
    /** Intersections. */
@@ -43,4 +48,8 @@ private:
    void addVehicle();
    /** @brief Move the Vehicle for the next frame. */
    void updateVehiclesPosition();
+   /** Number of completed trips. */
+   int completedVehicles = 0;
+   /** Start time of the simulation. */
+   clock_t simulationStartTime;
 };

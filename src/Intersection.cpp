@@ -1,27 +1,28 @@
 // Libraries
 #include <GLFW/glfw3.h> // To display
 #include <ctime>        // To use clock() and clock_t
-#include <numeric>      // To use accumulate
 #include <memory>       // To use smart pointers
+#include <numeric>      // To use accumulate
 // Headers
 #include "../headers/Constants.h"
+#include "../headers/DeepRLOperator.h"
 #include "../headers/Global.h"
 #include "../headers/Intersection.h"
-#include "../headers/Road.h"
 #include "../headers/QLearningOperator.h"
-#include "../headers/DeepRLOperator.h"
+#include "../headers/Road.h"
 
 Intersection::Intersection(const int n,
                            const std::vector<double> pos,
                            std::shared_ptr<IntersectionOperator> op)
-   : idIntersection(n),
-     position(pos),
-     coordinates{ position[0] * constants::ratioX + constants::margin,
-                  position[1] * constants::ratioY + constants::margin },
-     op(op),
-     currentGreenRoadIndex(0),
-     lastAction(0),
-     lastSwitchTime(clock()) {
+    : idIntersection(n),
+      position(pos),
+      coordinates{position[0] * constants::ratioX + constants::margin,
+                  position[1] * constants::ratioY + constants::margin},
+      op(op),
+      currentGreenRoadIndex(0),
+      lastAction(0),
+      lastDelay(0.0),
+      lastSwitchTime(clock()) {
 }
 
 bool Intersection::isRed(const int id) const {
@@ -40,8 +41,8 @@ void Intersection::displayIntersection() const {
 
 void Intersection::addInputRoad(Road* r) {
    if (r) {
-       input.push_back(r->getID());
-       inputRoads.push_back(r);
+      input.push_back(r->getID());
+      inputRoads.push_back(r);
    }
 }
 
@@ -61,65 +62,156 @@ bool Intersection::operator==(const Intersection i) {
    return idIntersection == i.idIntersection;
 }
 
+void Intersection::setOperator(std::shared_ptr<IntersectionOperator> newOp) {
+   op = newOp;
+}
+
+int Intersection::computeHeuristicAction() const {
+   if (inputRoads.empty())
+      return -1;
+
+   // Check if we should keep the current light green
+   if (currentGreenRoadIndex >= 0 && currentGreenRoadIndex < static_cast<int>(inputRoads.size())) {
+      const Road* currentGreen = inputRoads[currentGreenRoadIndex];
+      if (!currentGreen->getVehicles().empty()) {
+         auto firstCar = currentGreen->getVehicles().front();
+         double distToIntersection =
+             currentGreen->getLength() - firstCar->distance(currentGreen->getStart());
+         // If the first car is within an approaching threshold, keep it green
+         if (distToIntersection < constants::heightCar * 3.0) {
+            return currentGreenRoadIndex;
+         }
+      }
+   }
+
+   // 1. Check for "full road"
+   int maxCars = -1;
+   int choosenRoad = -1;
+
+   for (size_t i = 0; i < inputRoads.size(); ++i) {
+      const Road* r = inputRoads[i];
+      if (!r->getVehicles().empty()) {
+         auto lastCar = r->getVehicles().back();
+         // A road is "full" if the last car is very close to the start of the road
+         if (lastCar->distance(r->getStart()) <=
+             constants::heightCar + 2.0 * constants::distanceSecurity) {
+            return static_cast<int>(i); // Priority 1: full road
+         }
+      }
+
+      int numCars = static_cast<int>(r->getVehicles().size());
+      if (numCars > maxCars) {
+         maxCars = numCars;
+         choosenRoad = static_cast<int>(i);
+      }
+   }
+
+   // 2. Road containing the most cars
+   if (choosenRoad != -1 && maxCars > 0) {
+      return choosenRoad;
+   }
+
+   // Default to keeping the current green or picking arbitrarily
+   return currentGreenRoadIndex;
+}
+
 void Intersection::update() {
-    if (inputRoads.empty()) return;
+   if (inputRoads.empty())
+      return;
 
-    // 1. Construct State
-    // State: [currentGreenIndex, road0_occ, road0_speed, road0_usage, ..., roadN_occ, roadN_speed, roadN_usage]
-    // Standardized to stateSize
-    std::vector<int> state(constants::stateSize, 0); // Initialize with 0 (padding)
-    state.push_back(currentGreenRoadIndex);
-
-    const int totalNumberOfArrivingVehicle = std::accumulate(
-        inputRoads.begin(), inputRoads.end(), 0,
-        [](int sum, const Road* r) { return sum + r->getTotalNumberOfArringVehicles(); }
-    );
-    const double averageNewVehicles = static_cast<double>(totalNumberOfArrivingVehicle) / static_cast<double>(inputRoads.size());
-    for (const Road* r : inputRoads) {
-        auto stats = r->getVehicleStats(averageNewVehicles);
-        state.push_back(std::get<0>(stats)); // Occupancy
-        state.push_back(std::get<1>(stats)); // Speed
-        state.push_back(std::get<2>(stats)); // Usage
-    }
-
-    // 2. Calculate Reward (from previous action)
-    // Reward = -sum((actual_time - ideal_time)^penalty)
-    double reward = 0.0;
-    constexpr double penaltyCoeff = 2.0; // Configurable
-    for (const Road* r : inputRoads) {
-        for (const auto& v : r->getVehicles()) {
-            const double timeOnRoad = static_cast<double>(clock() - v->getEnterRoadTime()) / static_cast<double>(CLOCKS_PER_SEC); // in seconds
-            const double dist = v->distance(r->getStart());
-            const double ideal = dist / v->getSpeedMax();
-            const double diff = std::max(timeOnRoad - ideal, 0.0); // safety
-            reward -= pow(diff, penaltyCoeff);
-        }
-    }
-
-    // 3. Learn
-    // Available actions: 0 to inputRoads.size()-1
-    std::vector<int> availableActions;
-    for (size_t i = 0; i < inputRoads.size(); ++i) {
-        availableActions.push_back(static_cast<int>(i));
-    }
-
-    if (!lastState.empty()) {
-        op->learn(lastState, lastAction, reward, state, availableActions);
-    }
-
-    // 4. Decide
-    const clock_t now = clock();
-    const double timeSinceSwitch = static_cast<double>(now - lastSwitchTime) / static_cast<double>(CLOCKS_PER_SEC); // in seconds
-    if (timeSinceSwitch > constants::trafficLightPeriod) {
-        const int action = op->decide(state, availableActions);
-        
-        if (action != -1) {
+   // If using Heuristic, bypass RL state parsing entirely
+   if (constants::learningType == LearningType::HEURISTIC) {
+      const clock_t now = clock();
+      const double timeSinceSwitch = static_cast<double>(now - lastSwitchTime) /
+                                     static_cast<double>(CLOCKS_PER_SEC); // in seconds
+      if (timeSinceSwitch > constants::trafficLightPeriod) {
+         int action = computeHeuristicAction();
+         if (action != -1) {
             currentGreenRoadIndex = action;
             lastAction = action;
-            lastState = state;
             lastSwitchTime = now;
-        }
-    } else {
-        // TODO: learning continuity?
-    }
+         }
+      }
+   }
+
+   // 1. Construct State
+   // State: [currentGreenIndex, road0_occ, road0_speed, road0_usage, ...,
+   // roadN_occ, roadN_speed, roadN_usage] Standardized to stateSize
+   std::vector<int> state;
+   state.reserve(constants::stateSize);
+   state.push_back(currentGreenRoadIndex);
+
+   const int totalNumberOfArrivingVehicle =
+       std::accumulate(inputRoads.begin(), inputRoads.end(), 0, [](int sum, const Road* r) {
+          return sum + r->getTotalNumberOfArringVehicles();
+       });
+   const double averageNewVehicles =
+       static_cast<double>(totalNumberOfArrivingVehicle) / static_cast<double>(inputRoads.size());
+   for (const Road* r : inputRoads) {
+      auto stats = r->getVehicleStats(averageNewVehicles);
+      state.push_back(std::get<0>(stats)); // Occupancy
+      state.push_back(std::get<1>(stats)); // Speed
+      state.push_back(std::get<2>(stats)); // Usage
+   }
+
+   // Pad to standardized size
+   while (state.size() < static_cast<size_t>(constants::stateSize)) {
+      state.push_back(0);
+   }
+
+   // 2. Calculate Reward
+   // Reward = improvement in average delay since last action (normalized)
+   double totalDelay = 0.0;
+   int numVehicles = 0;
+   for (const Road* r : inputRoads) {
+      for (const auto& v : r->getVehicles()) {
+         const double timeOnRoad = static_cast<double>(clock() - v->getEnterRoadTime()) /
+                                   static_cast<double>(CLOCKS_PER_SEC); // in seconds
+         const double dist = v->distance(r->getStart());
+         const double ideal = dist / v->getSpeedMax();
+         totalDelay += std::max(timeOnRoad - ideal, 0.0);
+         numVehicles++;
+      }
+   }
+
+   // Use average delay of vehicles to prevent huge swings when vehicles enter/leave
+   double currentDelay = numVehicles > 0 ? (totalDelay / static_cast<double>(numVehicles)) : 0.0;
+
+   // Normalized delta delay inside bounded range [-1.0, 1.0]
+   double rawDelta = lastDelay - currentDelay;
+   double reward =
+       rawDelta / 5.0; // 5 seconds average delay improvement = 1.0 max reward (configurable)
+   if (reward > 1.0)
+      reward = 1.0;
+   if (reward < -1.0)
+      reward = -1.0;
+
+   // 3. Learn
+   // Available actions: 0 to inputRoads.size()-1
+   std::vector<int> availableActions;
+   for (size_t i = 0; i < inputRoads.size(); ++i) {
+      availableActions.push_back(static_cast<int>(i));
+   }
+
+   if (!lastState.empty()) {
+      op->learn(lastState, lastAction, reward, state, availableActions);
+   }
+
+   // 4. Decide
+   const clock_t now = clock();
+   const double timeSinceSwitch = static_cast<double>(now - lastSwitchTime) /
+                                  static_cast<double>(CLOCKS_PER_SEC); // in seconds
+   if (timeSinceSwitch > constants::trafficLightPeriod) {
+      const int action = op->decide(state, availableActions);
+
+      if (action != -1) {
+         currentGreenRoadIndex = action;
+         lastAction = action;
+         lastState = state;
+         lastDelay = currentDelay;
+         lastSwitchTime = now;
+      }
+   } else {
+      // TODO: learning continuity?
+   }
 }
