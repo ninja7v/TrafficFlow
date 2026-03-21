@@ -102,7 +102,7 @@ TEST(NetworkTest, SimulationSteps_QLearning) {
     constants::flow = 99; // Maximize vehicle spawns to hit move/intersection logic
 
     Network n;
-    n.displayNetwork(500); 
+    n.runHeadless(30); 
     SUCCEED();
 }
 
@@ -113,7 +113,7 @@ TEST(NetworkTest, SimulationSteps_DQN) {
     constants::flow = 99;
 
     Network n;
-    n.displayNetwork(500);
+    n.runHeadless(30);
     SUCCEED();
 }
 
@@ -124,7 +124,7 @@ TEST(NetworkTest, SimulationSteps_Heuristic) {
     constants::flow = 99;
 
     Network n;
-    n.displayNetwork(500);
+    n.runHeadless(30);
     SUCCEED();
 }
 

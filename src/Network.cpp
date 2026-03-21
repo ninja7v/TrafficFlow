@@ -271,7 +271,7 @@ void Network::processSimulationStep() {
    // Roads
    for (const auto& r : Roads) {
       if (r) {
-         r->displayRoad();
+         if (!isHeadless) r->displayRoad();
          map.updateConnection(r);
       }
    }
@@ -284,7 +284,7 @@ void Network::processSimulationStep() {
             completedVehicles++;
             return true; // Remove the vehicle
          }
-         v->displayVehicle();
+         if (!isHeadless) v->displayVehicle();
          return false; // Keep the vehicle
       });
       // Intersections
@@ -294,20 +294,32 @@ void Network::processSimulationStep() {
       }
    } else {
       // If paused, we still need to display vehicles
-      for (const auto& v : Vehicles) {
-         if (v)
-            v->displayVehicle();
+      if (!isHeadless) {
+         for (const auto& v : Vehicles) {
+            if (v)
+               v->displayVehicle();
+         }
       }
    }
 
-   for (const auto& i : Intersections) {
-      if (i)
-         i->displayIntersection();
+   if (!isHeadless) {
+      for (const auto& i : Intersections) {
+         if (i)
+            i->displayIntersection();
+      }
+      // Traffic lights
+      for (const auto& r : Roads) {
+         if (r)
+            r->displayLight();
+      }
    }
-   // Traffic lights
-   for (const auto& r : Roads) {
-      if (r)
-         r->displayLight();
+}
+
+void Network::runHeadless(int maxFrames) {
+   isHeadless = true;
+   global::t0 = clock();
+   for (int f = 0; f < maxFrames; ++f) {
+      processSimulationStep();
    }
 }
 
