@@ -158,7 +158,150 @@ GLFWwindow* Network::initWindowAndImGui() {
    return window;
 }
 
-void Network::displayNetwork() {
+void Network::processMetrics(double currentTime, double& lastTime, int& lastCompletedVehicles, double& smoothedFlowPerMin, bool& isFirstFlowMeas, int& nbFrames, int& lastFPS) {
+   if (currentTime - lastTime >= 1.0) { // If last print was more than 1 sec ago
+      lastFPS = nbFrames;
+      nbFrames = 0;
+      if (!isPaused) {
+         double deltaTimeMinutes = (currentTime - lastTime) / 60.0;
+         double instantFlowPerMin =
+             (deltaTimeMinutes > 0.0)
+                 ? ((completedVehicles - lastCompletedVehicles) / deltaTimeMinutes) /
+                       constants::boost
+                 : 0.0;
+         if (isFirstFlowMeas) {
+            smoothedFlowPerMin = instantFlowPerMin;
+            isFirstFlowMeas = false;
+         } else {
+            smoothedFlowPerMin = 0.8 * smoothedFlowPerMin + 0.2 * instantFlowPerMin;
+         }
+      }
+      lastCompletedVehicles = completedVehicles;
+      lastTime = currentTime;
+   }
+}
+
+void Network::renderControlPanel(double smoothedFlowPerMin, double& smoothedAvgSpeed, int lastFPS, double& lastPrintTime, double elapsedSimulationMinutes, double currentTime) {
+   ImGui_ImplOpenGL3_NewFrame();
+   ImGui_ImplGlfw_NewFrame();
+   ImGui::NewFrame();
+
+   // Metrics
+   ImGui::Begin("Simulation Control", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+   ImGui::Text("Metrics");
+   ImGui::Text("%d Intersections ", constants::nbIntersections);
+   ImGui::Text("%d Vehicles", global::numberOfVehicles);
+   ImGui::Text("%.2f Flow (Trips/min)", smoothedFlowPerMin);
+
+   double totalSpeed = 0.0;
+   for (const auto& v : Vehicles) {
+      totalSpeed += v->getSpeed();
+   }
+   double avgSpeed = Vehicles.empty() ? 0.0 : totalSpeed / Vehicles.size();
+   double instantAvgSpeedPxPerSec = (avgSpeed * ImGui::GetIO().Framerate) / constants::boost;
+
+   if (Vehicles.empty()) {
+      smoothedAvgSpeed = 0.0;
+   } else if (smoothedAvgSpeed == 0.0) {
+      smoothedAvgSpeed = instantAvgSpeedPxPerSec;
+   } else {
+      smoothedAvgSpeed = 0.98 * smoothedAvgSpeed + 0.02 * instantAvgSpeedPxPerSec;
+   }
+
+   if (smoothedAvgSpeed > 0) {
+      ImGui::Text("%.2f Average Speed (px/s)", smoothedAvgSpeed);
+   } else {
+      ImGui::Text("0.00 Average Speed (px/s)");
+   }
+
+   if (currentTime - lastPrintTime >= 5.0) {
+      std::cout << "Time: " << elapsedSimulationMinutes << "m | Flow/min: " << smoothedFlowPerMin
+                << " | AvgSpeed: " << smoothedAvgSpeed << std::endl;
+      lastPrintTime = currentTime;
+   }
+
+   ImGui::Text("%d FPS", lastFPS);
+   
+   // Parameters
+   ImGui::Separator();
+   ImGui::Text("Parameters");
+   float temp = static_cast<float>(constants::boost);
+   if (ImGui::SliderFloat("Boost", &temp, 0.1f, 100.0f)) {
+      constants::boost = static_cast<double>(temp);
+      constants::updateBoostDependentConstants();
+   }
+   ImGui::SliderInt("Max number vehicle", &constants::nbVehicleMax, 0, 100);
+
+   int currentMethodIndex = static_cast<int>(constants::learningType);
+   if (ImGui::Combo("Operating Method", &currentMethodIndex,
+                    "Q-Learning\0DQN (Neural Network)\0Heuristic\0")) {
+      constants::learningType = static_cast<LearningType>(currentMethodIndex);
+      if (constants::learningType == LearningType::Q_LEARNING) {
+         globalOperator = qLearningOp;
+      } else if (constants::learningType == LearningType::DQN) {
+         globalOperator = deepRLOp;
+      } else {
+         globalOperator = nullptr;
+      }
+      for (const auto& i : Intersections) {
+         if (i) i->setOperator(globalOperator);
+      }
+   }
+
+   ImGui::Separator();
+   if (isPaused) {
+      if (ImGui::Button("Play")) isPaused = false;
+   } else {
+      if (ImGui::Button("Pause")) isPaused = true;
+   }
+   ImGui::End();
+}
+
+void Network::processSimulationStep() {
+   // Roads
+   for (const auto& r : Roads) {
+      if (r) {
+         r->displayRoad();
+         map.updateConnection(r);
+      }
+   }
+   // Display unpaused logic
+   if (!isPaused) {
+      addVehicle();
+      updateVehiclesPosition();
+      Vehicles.remove_if([this](std::shared_ptr<Vehicle> v) {
+         if (v->getStatus()) {
+            completedVehicles++;
+            return true; // Remove the vehicle
+         }
+         v->displayVehicle();
+         return false; // Keep the vehicle
+      });
+      // Intersections
+      for (const auto& i : Intersections) {
+         if (i)
+            i->update(); // Update RL/Heuristic logic
+      }
+   } else {
+      // If paused, we still need to display vehicles
+      for (const auto& v : Vehicles) {
+         if (v)
+            v->displayVehicle();
+      }
+   }
+
+   for (const auto& i : Intersections) {
+      if (i)
+         i->displayIntersection();
+   }
+   // Traffic lights
+   for (const auto& r : Roads) {
+      if (r)
+         r->displayLight();
+   }
+}
+
+void Network::displayNetwork(int maxFrames /*Used by tests*/) {
    GLFWwindow* window = initWindowAndImGui();
    if (!window) {
       return;
@@ -173,152 +316,24 @@ void Network::displayNetwork() {
    bool isFirstFlowMeas = true;
    int nbFrames = 0;
    int lastFPS = 0;
+   int totalLoopFrames = 0;
    // Main loop (1 frame)
-   while (!glfwWindowShouldClose(window)) {
+   while (!glfwWindowShouldClose(window) && (maxFrames == 0 || totalLoopFrames < maxFrames)) {
+      totalLoopFrames++;
       // FPS Counter
       const double currentTime = glfwGetTime();
       nbFrames++;
-      if (currentTime - lastTime >= 1.0) { // If last print was more than 1 sec ago
-         lastFPS = nbFrames;
-         nbFrames = 0;
-         if (!isPaused) {
-            double deltaTimeMinutes = (currentTime - lastTime) / 60.0;
-            double instantFlowPerMin =
-                (deltaTimeMinutes > 0.0)
-                    ? ((completedVehicles - lastCompletedVehicles) / deltaTimeMinutes) /
-                          constants::boost
-                    : 0.0;
-            if (isFirstFlowMeas) {
-               smoothedFlowPerMin = instantFlowPerMin;
-               isFirstFlowMeas = false;
-            } else {
-               smoothedFlowPerMin = 0.8 * smoothedFlowPerMin + 0.2 * instantFlowPerMin;
-            }
-         }
-         lastCompletedVehicles = completedVehicles;
-         lastTime = currentTime;
-      }
-      // Start the Dear ImGui frame
-      ImGui_ImplOpenGL3_NewFrame();
-      ImGui_ImplGlfw_NewFrame();
-      ImGui::NewFrame();
-      // UI Window
-      ImGui::Begin("Simulation Control", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-      ImGui::Text("Metrics");
-      ImGui::Text("%d Intersections ", constants::nbIntersections);
-      ImGui::Text("%d Vehicles", global::numberOfVehicles);
-
+      
+      processMetrics(currentTime, lastTime, lastCompletedVehicles, smoothedFlowPerMin, isFirstFlowMeas, nbFrames, lastFPS);
       const double elapsedSimulationMinutes =
           static_cast<double>(clock() - global::t0) / static_cast<double>(CLOCKS_PER_SEC) / 60.0;
 
-      ImGui::Text("%.2f Flow (Trips/min)", smoothedFlowPerMin);
+      renderControlPanel(smoothedFlowPerMin, smoothedAvgSpeed, lastFPS, lastPrintTime, elapsedSimulationMinutes, currentTime);
 
-      double totalSpeed = 0.0;
-      for (const auto& v : Vehicles) {
-         totalSpeed += v->getSpeed();
-      }
-      double avgSpeed = Vehicles.empty() ? 0.0 : totalSpeed / Vehicles.size();
-      double instantAvgSpeedPxPerSec = (avgSpeed * ImGui::GetIO().Framerate) / constants::boost;
-
-      if (Vehicles.empty()) {
-         smoothedAvgSpeed = 0.0;
-      } else if (smoothedAvgSpeed == 0.0) {
-         smoothedAvgSpeed = instantAvgSpeedPxPerSec;
-      } else {
-         smoothedAvgSpeed = 0.98 * smoothedAvgSpeed + 0.02 * instantAvgSpeedPxPerSec;
-      }
-
-      if (smoothedAvgSpeed > 0) {
-         ImGui::Text("%.2f Average Speed (px/s)", smoothedAvgSpeed);
-      } else {
-         ImGui::Text("0.00 Average Speed (px/s)");
-      }
-
-      if (currentTime - lastPrintTime >= 5.0) {
-         std::cout << "Time: " << elapsedSimulationMinutes << "m | Flow/min: " << smoothedFlowPerMin
-                   << " | AvgSpeed: " << smoothedAvgSpeed << std::endl;
-         lastPrintTime = currentTime;
-      }
-
-      ImGui::Text("%d FPS", lastFPS);
-      ImGui::Separator();
-      ImGui::Text("Parameters");
-      float temp = static_cast<float>(constants::boost);
-      if (ImGui::SliderFloat("Boost", &temp, 0.1f, 100.0f)) {
-         constants::boost = static_cast<double>(temp);
-         constants::updateBoostDependentConstants();
-      }
-      ImGui::SliderInt("Max number vehicle", &constants::nbVehicleMax, 0, 100);
-
-      int currentMethodIndex = static_cast<int>(constants::learningType);
-      if (ImGui::Combo("Operating Method", &currentMethodIndex,
-                       "Q-Learning\0DQN (Neural Network)\0Heuristic\0")) {
-         constants::learningType = static_cast<LearningType>(currentMethodIndex);
-         if (constants::learningType == LearningType::Q_LEARNING) {
-            globalOperator = qLearningOp;
-         } else if (constants::learningType == LearningType::DQN) {
-            globalOperator = deepRLOp;
-         } else {
-            globalOperator = nullptr;
-         }
-         for (const auto& i : Intersections) {
-            if (i)
-               i->setOperator(globalOperator);
-         }
-      }
-
-      ImGui::Separator();
-      if (isPaused) {
-         if (ImGui::Button("Play"))
-            isPaused = false;
-      } else {
-         if (ImGui::Button("Pause"))
-            isPaused = true;
-      }
-      ImGui::End();
       // Clear the screen
       glClear(GL_COLOR_BUFFER_BIT);
-      // Roads
-      for (const auto& r : Roads) {
-         if (r) {
-            r->displayRoad();
-            map.updateConnection(r);
-         }
-      }
-      // Display unpaused logic
-      if (!isPaused) {
-         addVehicle();
-         updateVehiclesPosition();
-         Vehicles.remove_if([this](std::shared_ptr<Vehicle> v) {
-            if (v->getStatus()) {
-               completedVehicles++;
-               return true; // Remove the vehicle
-            }
-            v->displayVehicle();
-            return false; // Keep the vehicle
-         });
-         // Intersections
-         for (const auto& i : Intersections) {
-            if (i)
-               i->update(); // Update RL/Heuristic logic
-         }
-      } else {
-         // If paused, we still need to display vehicles
-         for (const auto& v : Vehicles) {
-            if (v)
-               v->displayVehicle();
-         }
-      }
-
-      for (const auto& i : Intersections) {
-         if (i)
-            i->displayIntersection();
-      }
-      // Traffic lights
-      for (const auto& r : Roads) {
-         if (r)
-            r->displayLight();
-      }
+      
+      processSimulationStep();
       // Rendering panel
       ImGui::Render();
       ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

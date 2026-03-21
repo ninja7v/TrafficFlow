@@ -99,7 +99,8 @@ TEST(NetworkTest, SimulationSteps) {
     Network n;
     
     // Test the only public method to ensure no crashes
-    n.displayNetwork();
+    // Run for a limited number of frames so it doesn't hang the CI pipeline
+    n.displayNetwork(10);
     SUCCEED();
 }
 

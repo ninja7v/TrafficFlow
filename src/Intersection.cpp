@@ -115,28 +115,7 @@ int Intersection::computeHeuristicAction() const {
    return currentGreenRoadIndex;
 }
 
-void Intersection::update() {
-   if (inputRoads.empty())
-      return;
-
-   // If using Heuristic, bypass RL state parsing entirely
-   if (constants::learningType == LearningType::HEURISTIC) {
-      const clock_t now = clock();
-      const double timeSinceSwitch = static_cast<double>(now - lastSwitchTime) /
-                                     static_cast<double>(CLOCKS_PER_SEC); // in seconds
-      if (timeSinceSwitch > constants::trafficLightPeriod) {
-         int action = computeHeuristicAction();
-         if (action != -1) {
-            currentGreenRoadIndex = action;
-            lastAction = action;
-            lastSwitchTime = now;
-         }
-      }
-   }
-
-   // 1. Construct State
-   // State: [currentGreenIndex, road0_occ, road0_speed, road0_usage, ...,
-   // roadN_occ, roadN_speed, roadN_usage] Standardized to stateSize
+std::vector<int> Intersection::constructState() const {
    std::vector<int> state;
    state.reserve(constants::stateSize);
    state.push_back(currentGreenRoadIndex);
@@ -158,9 +137,10 @@ void Intersection::update() {
    while (state.size() < static_cast<size_t>(constants::stateSize)) {
       state.push_back(0);
    }
+   return state;
+}
 
-   // 2. Calculate Reward
-   // Reward = improvement in average delay since last action (normalized)
+double Intersection::calculateReward(double& currentDelay) const {
    double totalDelay = 0.0;
    int numVehicles = 0;
    for (const Road* r : inputRoads) {
@@ -174,33 +154,56 @@ void Intersection::update() {
       }
    }
 
-   // Use average delay of vehicles to prevent huge swings when vehicles enter/leave
-   double currentDelay = numVehicles > 0 ? (totalDelay / static_cast<double>(numVehicles)) : 0.0;
+   currentDelay = numVehicles > 0 ? (totalDelay / static_cast<double>(numVehicles)) : 0.0;
 
-   // Normalized delta delay inside bounded range [-1.0, 1.0]
    double rawDelta = lastDelay - currentDelay;
-   double reward =
-       rawDelta / 5.0; // 5 seconds average delay improvement = 1.0 max reward (configurable)
-   if (reward > 1.0)
-      reward = 1.0;
-   if (reward < -1.0)
-      reward = -1.0;
+   double reward = rawDelta / 5.0; 
+   if (reward > 1.0) reward = 1.0;
+   if (reward < -1.0) reward = -1.0;
+      
+   return reward;
+}
 
-   // 3. Learn
-   // Available actions: 0 to inputRoads.size()-1
+void Intersection::performLearning(const std::vector<int>& state, double reward, const std::vector<int>& availableActions) {
+   if (!lastState.empty()) {
+      op->learn(lastState, lastAction, reward, state, availableActions);
+   }
+}
+
+void Intersection::update() {
+   if (inputRoads.empty())
+      return;
+
+   if (constants::learningType == LearningType::HEURISTIC) {
+      const clock_t now = clock();
+      const double timeSinceSwitch = static_cast<double>(now - lastSwitchTime) /
+                                     static_cast<double>(CLOCKS_PER_SEC); 
+      if (timeSinceSwitch > constants::trafficLightPeriod) {
+         int action = computeHeuristicAction();
+         if (action != -1) {
+            currentGreenRoadIndex = action;
+            lastAction = action;
+            lastSwitchTime = now;
+         }
+      }
+      return;
+   }
+
+   std::vector<int> state = constructState();
+
+   double currentDelay = 0.0;
+   double reward = calculateReward(currentDelay);
+
    std::vector<int> availableActions;
    for (size_t i = 0; i < inputRoads.size(); ++i) {
       availableActions.push_back(static_cast<int>(i));
    }
 
-   if (!lastState.empty()) {
-      op->learn(lastState, lastAction, reward, state, availableActions);
-   }
+   performLearning(state, reward, availableActions);
 
-   // 4. Decide
    const clock_t now = clock();
    const double timeSinceSwitch = static_cast<double>(now - lastSwitchTime) /
-                                  static_cast<double>(CLOCKS_PER_SEC); // in seconds
+                                  static_cast<double>(CLOCKS_PER_SEC); 
    if (timeSinceSwitch > constants::trafficLightPeriod) {
       const int action = op->decide(state, availableActions);
 
@@ -211,7 +214,5 @@ void Intersection::update() {
          lastDelay = currentDelay;
          lastSwitchTime = now;
       }
-   } else {
-      // TODO: learning continuity?
    }
 }
