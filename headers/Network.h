@@ -24,10 +24,6 @@ public:
    /** @brief Network display.
     * @param maxFrames Optional parameter restricting total frames to process for the tests (0 = infinite). */
    void displayNetwork(int maxFrames = 0);
-   /** @brief Run the simulation logic headless (bypassing OpenGL) for testing coverage cleanly. */
-   void runHeadless(int maxFrames);
-
-   bool isHeadless = false;
 
 protected:
 
