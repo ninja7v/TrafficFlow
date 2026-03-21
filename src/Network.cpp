@@ -158,7 +158,13 @@ GLFWwindow* Network::initWindowAndImGui() {
    return window;
 }
 
-void Network::processMetrics(double currentTime, double& lastTime, int& lastCompletedVehicles, double& smoothedFlowPerMin, bool& isFirstFlowMeas, int& nbFrames, int& lastFPS) {
+void Network::processMetrics(double currentTime,
+                             double& lastTime,
+                             int& lastCompletedVehicles,
+                             double& smoothedFlowPerMin,
+                             bool& isFirstFlowMeas,
+                             int& nbFrames,
+                             int& lastFPS) {
    if (currentTime - lastTime >= 1.0) { // If last print was more than 1 sec ago
       lastFPS = nbFrames;
       nbFrames = 0;
@@ -181,7 +187,12 @@ void Network::processMetrics(double currentTime, double& lastTime, int& lastComp
    }
 }
 
-void Network::renderControlPanel(double smoothedFlowPerMin, double& smoothedAvgSpeed, int lastFPS, double& lastPrintTime, double elapsedSimulationMinutes, double currentTime) {
+void Network::renderControlPanel(double smoothedFlowPerMin,
+                                 double& smoothedAvgSpeed,
+                                 int lastFPS,
+                                 double& lastPrintTime,
+                                 double elapsedSimulationMinutes,
+                                 double currentTime) {
    ImGui_ImplOpenGL3_NewFrame();
    ImGui_ImplGlfw_NewFrame();
    ImGui::NewFrame();
@@ -197,7 +208,9 @@ void Network::renderControlPanel(double smoothedFlowPerMin, double& smoothedAvgS
    for (const auto& v : Vehicles) {
       totalSpeed += v->getSpeed();
    }
-   double avgSpeed = Vehicles.empty() ? 0.0 : totalSpeed / Vehicles.size();
+
+   double numVehicles = std::max(1.0, static_cast<double>(Vehicles.size()));
+   double avgSpeed = totalSpeed / numVehicles;
    double instantAvgSpeedPxPerSec = (avgSpeed * ImGui::GetIO().Framerate) / constants::boost;
 
    if (Vehicles.empty()) {
@@ -221,7 +234,7 @@ void Network::renderControlPanel(double smoothedFlowPerMin, double& smoothedAvgS
    }
 
    ImGui::Text("%d FPS", lastFPS);
-   
+
    // Parameters
    ImGui::Separator();
    ImGui::Text("Parameters");
@@ -236,23 +249,20 @@ void Network::renderControlPanel(double smoothedFlowPerMin, double& smoothedAvgS
    if (ImGui::Combo("Operating Method", &currentMethodIndex,
                     "Q-Learning\0DQN (Neural Network)\0Heuristic\0")) {
       constants::learningType = static_cast<LearningType>(currentMethodIndex);
-      if (constants::learningType == LearningType::Q_LEARNING) {
-         globalOperator = qLearningOp;
-      } else if (constants::learningType == LearningType::DQN) {
-         globalOperator = deepRLOp;
-      } else {
-         globalOperator = nullptr;
-      }
+
+      std::shared_ptr<IntersectionOperator> ops[] = {qLearningOp, deepRLOp, nullptr};
+      globalOperator = ops[currentMethodIndex];
+
       for (const auto& i : Intersections) {
-         if (i) i->setOperator(globalOperator);
+         if (i)
+            i->setOperator(globalOperator);
       }
    }
 
    ImGui::Separator();
-   if (isPaused) {
-      if (ImGui::Button("Play")) isPaused = false;
-   } else {
-      if (ImGui::Button("Pause")) isPaused = true;
+   const char* playPauseLabels[] = {"Pause", "Play"};
+   if (ImGui::Button(playPauseLabels[isPaused])) {
+      isPaused = !isPaused;
    }
    ImGui::End();
 }
@@ -323,16 +333,18 @@ void Network::displayNetwork(int maxFrames /*Used by tests*/) {
       // FPS Counter
       const double currentTime = glfwGetTime();
       nbFrames++;
-      
-      processMetrics(currentTime, lastTime, lastCompletedVehicles, smoothedFlowPerMin, isFirstFlowMeas, nbFrames, lastFPS);
+
+      processMetrics(currentTime, lastTime, lastCompletedVehicles, smoothedFlowPerMin,
+                     isFirstFlowMeas, nbFrames, lastFPS);
       const double elapsedSimulationMinutes =
           static_cast<double>(clock() - global::t0) / static_cast<double>(CLOCKS_PER_SEC) / 60.0;
 
-      renderControlPanel(smoothedFlowPerMin, smoothedAvgSpeed, lastFPS, lastPrintTime, elapsedSimulationMinutes, currentTime);
+      renderControlPanel(smoothedFlowPerMin, smoothedAvgSpeed, lastFPS, lastPrintTime,
+                         elapsedSimulationMinutes, currentTime);
 
       // Clear the screen
       glClear(GL_COLOR_BUFFER_BIT);
-      
+
       processSimulationStep();
       // Rendering panel
       ImGui::Render();
