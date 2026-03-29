@@ -95,11 +95,36 @@ TEST(MapTest, Connections) {
 }
 
 // ------------------------- Network tests -------------------------
-TEST(NetworkTest, SimulationSteps) {
+TEST(NetworkTest, SimulationSteps_QLearning) {
+    constants::learningType = LearningType::Q_LEARNING;
+    constants::boost = 100.0;
+    constants::updateBoostDependentConstants();
+    constants::flow = 99; // Maximize vehicle spawns to hit move/intersection logic
+
     Network n;
-    
-    // Test the only public method to ensure no crashes
-    n.displayNetwork();
+    n.displayNetwork(10); 
+    SUCCEED();
+}
+
+TEST(NetworkTest, SimulationSteps_DQN) {
+    constants::learningType = LearningType::DQN;
+    constants::boost = 100.0;
+    constants::updateBoostDependentConstants();
+    constants::flow = 99;
+
+    Network n;
+    n.displayNetwork(10);
+    SUCCEED();
+}
+
+TEST(NetworkTest, SimulationSteps_Heuristic) {
+    constants::learningType = LearningType::HEURISTIC;
+    constants::boost = 100.0;
+    constants::updateBoostDependentConstants();
+    constants::flow = 99;
+
+    Network n;
+    n.displayNetwork(10);
     SUCCEED();
 }
 

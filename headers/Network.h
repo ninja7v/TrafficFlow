@@ -21,16 +21,28 @@ public:
    /** @brief Default constructor.
     * @returns Network */
    Network();
-   /** @brief Network display. */
-   void displayNetwork();
+   /** @brief Network display.
+    * @param maxFrames Optional parameter restricting total frames to process for the tests (0 = infinite). */
+   void displayNetwork(int maxFrames = 0);
 
 protected:
 
 private:
    /** @brief Helper to initialize the window and ImGui. */
    GLFWwindow* initWindowAndImGui();
+   /** @brief Process and update the metrics. */
+   void processMetrics(double currentTime, double& lastTime, int& lastCompletedVehicles, double& smoothedFlowPerMin, bool& isFirstFlowMeas, int& nbFrames, int& lastFPS);
+   /** @brief Render the control panel. */
+   void renderControlPanel(double smoothedFlowPerMin, double& smoothedAvgSpeed, int lastFPS, double& lastPrintTime, double elapsedSimulationMinutes, double currentTime);
+   /** @brief Process one step of the simulation (vehicle movements, RL/Heuristic updates). */
+   void processSimulationStep();
+   /** Operators */
+   std::shared_ptr<IntersectionOperator> qLearningOp;
+   std::shared_ptr<IntersectionOperator> deepRLOp;
    /** Global Intersection Operator. */
    std::shared_ptr<IntersectionOperator> globalOperator;
+   /** Is the simulation paused? */
+   bool isPaused = false;
    /** Road Map. */
    Map map;
    /** Intersections. */
@@ -43,4 +55,8 @@ private:
    void addVehicle();
    /** @brief Move the Vehicle for the next frame. */
    void updateVehiclesPosition();
+   /** Number of completed trips. */
+   int completedVehicles = 0;
+   /** Start time of the simulation. */
+   clock_t simulationStartTime;
 };

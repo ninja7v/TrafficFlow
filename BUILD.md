@@ -4,7 +4,7 @@ This project uses CMake for cross-platform build configuration.
 
 ## Prerequisites
 
-- **CMake** (3.13 or higher)
+- **CMake** (4.2 or higher)
 - **C++ Compiler** supporting C++20 (GCC, Clang, MSVC)
 - **Dependencies**:
     - **Windows**: Dependencies are included in the `Dependencies` folder.

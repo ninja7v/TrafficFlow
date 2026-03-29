@@ -5,17 +5,18 @@
 #pragma once
 // Libraries
 #include <array>  // To use arrays
-#include <vector> // To use vectors
-#include <string> // To use strings
 #include <ctime>  // To use clock_t
 #include <memory> // To use smart pointers
+#include <string> // To use strings
+#include <vector> // To use vectors
+
 // Headers
 #include "IntersectionOperator.h"
 
 class Road;
 
 class Intersection {
-public:
+ public:
    Intersection() = delete;
    /** @brief Constructor.
     * @param id Road ID
@@ -42,15 +43,27 @@ public:
    /** @brief Getter.
     * @returns Number of input roads */
    int getNumberInputRoads() const;
-   /** @brief Comparison operator. 
+   /** @brief Comparison operator.
     * @returns Equal? */
-   bool operator == (const Intersection i);
+   bool operator==(const Intersection i);
    /** @brief Update the intersection lights using RL. */
    void update();
+   /** @brief Set a new operator for this intersection. */
+   void setOperator(std::shared_ptr<IntersectionOperator> newOp);
+   /** @brief Evaluate heuristic fallback. */
+   int computeHeuristicAction() const;
 
-protected:
+ protected:
+ private:
+   /** @brief Construct the dynamic learning state matrix. */
+   std::vector<int> constructState() const;
+   /** @brief Calculate the current reward metrics. */
+   double calculateReward(double& currentDelay) const;
+   /** @brief Pass metrics to operator for mathematical learning. */
+   void performLearning(const std::vector<int>& state,
+                        double reward,
+                        const std::vector<int>& availableActions);
 
-private:
    /** Intersection identifier. */
    const int idIntersection;
    /** Position on the grid. */
@@ -62,8 +75,8 @@ private:
    /** Input / output roads. */
    std::vector<Road*> inputRoads;
 
-/** @defgroup RL components */
-/**@{*/
+   /** @defgroup RL components */
+   /**@{*/
    /** operator to decide traffic light actions */
    std::shared_ptr<IntersectionOperator> op;
    /** Index of the current green road in 'input' vector */
@@ -72,7 +85,9 @@ private:
    std::vector<int> lastState;
    /** Last action taken */
    int lastAction;
+   /** Last cumulative delay */
+   double lastDelay;
    /** Time of the last traffic light switch */
    clock_t lastSwitchTime;
-/**@}*/
+   /**@}*/
 };

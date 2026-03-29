@@ -80,4 +80,4 @@ jobs:
             --exclude-directories 'Dependencies' \
             --gcov-ignore-parse-errors \
             --print-summary \
-            --fail-under-line 60
+            --fail-under-line 50

@@ -9,7 +9,11 @@
                 "-S",
                 ".",
                 "-B",
-                "build"
+                "build",
+                "-G",
+                "Visual Studio 18 2026",
+                "-A",
+                "x64"
             ],
             "group": "build",
             "problemMatcher": []
@@ -20,7 +24,9 @@
             "command": "cmake",
             "args": [
                 "--build",
-                "build"
+                "build",
+                "--config",
+                "Debug"
             ],
             "group": {
                 "kind": "build",
