@@ -1,0 +1,158 @@
+[
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\src\\Bike.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\Bike.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/Bike.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/src/Bike.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\src\\Car.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\Car.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/Car.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/src/Car.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\src\\Constants.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\Constants.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/Constants.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/src/Constants.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\src\\DeepRLOperator.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\DeepRLOperator.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/DeepRLOperator.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/src/DeepRLOperator.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\src\\Global.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\Global.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/Global.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/src/Global.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\src\\Intersection.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\Intersection.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/Intersection.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/src/Intersection.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\src\\IntersectionOperator.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\IntersectionOperator.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/IntersectionOperator.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/src/IntersectionOperator.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\src\\Map.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\Map.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/Map.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/src/Map.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\src\\Network.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\Network.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/Network.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/src/Network.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\src\\NeuralNetwork.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\NeuralNetwork.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/NeuralNetwork.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/src/NeuralNetwork.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\src\\QLearningOperator.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\QLearningOperator.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/QLearningOperator.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/src/QLearningOperator.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\src\\Road.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\Road.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/Road.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/src/Road.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\src\\Truck.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\Truck.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/Truck.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/src/Truck.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\src\\Vehicle.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\Vehicle.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/Vehicle.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/src/Vehicle.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\Dependencies\\imgui\\imgui.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\Dependencies\\imgui\\imgui.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/imgui.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/Dependencies/imgui/imgui.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\Dependencies\\imgui\\imgui_draw.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\Dependencies\\imgui\\imgui_draw.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/imgui_draw.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/Dependencies/imgui/imgui_draw.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\Dependencies\\imgui\\imgui_tables.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\Dependencies\\imgui\\imgui_tables.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/imgui_tables.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/Dependencies/imgui/imgui_tables.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\Dependencies\\imgui\\imgui_widgets.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\Dependencies\\imgui\\imgui_widgets.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/imgui_widgets.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/Dependencies/imgui/imgui_widgets.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\Dependencies\\imgui\\backends\\imgui_impl_glfw.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\Dependencies\\imgui\\backends\\imgui_impl_glfw.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends/imgui_impl_glfw.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/Dependencies/imgui/backends/imgui_impl_glfw.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/stb/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/delaunator/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GLFW/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/GL/include -std=gnu++2a -o CMakeFiles\\TrafficLib.dir\\Dependencies\\imgui\\backends\\imgui_impl_opengl3.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\Dependencies\\imgui\\backends\\imgui_impl_opengl3.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Dependencies/imgui/backends/imgui_impl_opengl3.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficLib.dir/Dependencies/imgui/backends/imgui_impl_opengl3.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -std=gnu++2a -o CMakeFiles\\TrafficFlow.dir\\src\\Main.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\src\\Main.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/src/Main.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/TrafficFlow.dir/src/Main.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/headers -isystem C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googletest/include -isystem C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googletest -std=gnu++2a -o CMakeFiles\\unit_tests.dir\\Tests\\gtest.cpp.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\Tests\\gtest.cpp",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/Tests/gtest.cpp",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/CMakeFiles/unit_tests.dir/Tests/gtest.cpp.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googlemock/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googlemock -isystem C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googletest/include -isystem C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googletest -std=c++2a -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=0 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -o _deps\\googletest-build\\googlemock\\CMakeFiles\\gmock.dir\\src\\gmock-all.cc.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\build-clangd\\_deps\\googletest-src\\googlemock\\src\\gmock-all.cc",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googlemock/src/gmock-all.cc",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-build/googlemock/CMakeFiles/gmock.dir/src/gmock-all.cc.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -isystem C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googlemock/include -isystem C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googlemock -isystem C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googletest/include -isystem C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googletest -std=c++2a -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=0 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -o _deps\\googletest-build\\googlemock\\CMakeFiles\\gmock_main.dir\\src\\gmock_main.cc.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\build-clangd\\_deps\\googletest-src\\googlemock\\src\\gmock_main.cc",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googlemock/src/gmock_main.cc",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/src/gmock_main.cc.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googletest/include -IC:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googletest -std=c++2a -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=0 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -o _deps\\googletest-build\\googletest\\CMakeFiles\\gtest.dir\\src\\gtest-all.cc.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\build-clangd\\_deps\\googletest-src\\googletest\\src\\gtest-all.cc",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googletest/src/gtest-all.cc",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-build/googletest/CMakeFiles/gtest.dir/src/gtest-all.cc.obj"
+},
+{
+  "directory": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd",
+  "command": "C:\\MinGW\\bin\\c++.exe -isystem C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googletest/include -isystem C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googletest -std=c++2a -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=0 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -o _deps\\googletest-build\\googletest\\CMakeFiles\\gtest_main.dir\\src\\gtest_main.cc.obj -c C:\\Users\\luc-p\\OneDrive\\Documents\\Traffic-Simulator\\build-clangd\\_deps\\googletest-src\\googletest\\src\\gtest_main.cc",
+  "file": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-src/googletest/src/gtest_main.cc",
+  "output": "C:/Users/luc-p/OneDrive/Documents/Traffic-Simulator/build-clangd/_deps/googletest-build/googletest/CMakeFiles/gtest_main.dir/src/gtest_main.cc.obj"
+}
+]

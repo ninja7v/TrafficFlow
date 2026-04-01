@@ -2,7 +2,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <GLFW/glfw3.h>                  // To display
 #include <algorithm>                     // To use max
-#include <array>                         // To use arrays
 #include <backends/imgui_impl_glfw.h>    // Platform backend: handles GLFW inputs and window events
 #include <backends/imgui_impl_opengl3.h> // Renderer backend: draws ImGui using OpenGL3
 #include <ctime>                         // To use clock()
@@ -217,7 +216,7 @@ void Network::renderControlPanel(double smoothedFlowPerMin,
       smoothedAvgSpeed = 0.0;
    } else if (smoothedAvgSpeed == 0.0) {
       smoothedAvgSpeed = instantAvgSpeedPxPerSec;
-   } else {
+   } else if (!isPaused) {
       smoothedAvgSpeed = 0.98 * smoothedAvgSpeed + 0.02 * instantAvgSpeedPxPerSec;
    }
 

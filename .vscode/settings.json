@@ -61,5 +61,9 @@
         "xutility": "cpp"
     },
     "C_Cpp.codeAnalysis.clangTidy.enabled": true,
-    "files.autoSave": "onWindowChange"
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "files.autoSave": "onWindowChange",
+    "clangd.arguments": [
+        "--compile-commands-dir=${workspaceFolder}/build-clangd"
+    ]
 }

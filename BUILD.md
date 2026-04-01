@@ -25,8 +25,8 @@ This project uses CMake for cross-platform build configuration.
 
 ## Running
 
-- **Windows**: Run `build\Debug\TrafficSimulator.exe` (or `Release` if configured).
-- **Linux/macOS**: Run `./build/TrafficSimulator`
+- **Windows**: Run `build\Debug\TrafficFlow.exe` (or `Release` if configured).
+- **Linux/macOS**: Run `./build/TrafficFlow`
 
 ## IDE Support
 

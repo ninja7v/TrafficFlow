@@ -106,7 +106,7 @@ namespace constants {
    inline void updateBoostDependentConstants()
    {
       flow = static_cast<int>(10.0 * boost);
-      trafficLightPeriod = 0.4 / boost;
+      trafficLightPeriod = 0.8 / boost;
       speedMaxCar   = 0.3 * boost;
       speedMaxBike  = 0.4 * boost;
       speedMaxTruck = 0.2 * boost;
