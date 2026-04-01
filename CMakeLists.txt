@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-project(TrafficSimulator)
+project(TrafficFlow)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -46,9 +46,9 @@ target_include_directories(TrafficLib PRIVATE
 )
 
 # Main executable
-add_executable(TrafficSimulator src/Main.cpp)
-target_include_directories(TrafficSimulator PRIVATE headers)
-target_link_libraries(TrafficSimulator PRIVATE TrafficLib)
+add_executable(TrafficFlow src/Main.cpp)
+target_include_directories(TrafficFlow PRIVATE headers)
+target_link_libraries(TrafficFlow PRIVATE TrafficLib)
 
 # Tests
 enable_testing()
@@ -94,7 +94,7 @@ target_link_libraries(unit_tests
 if(ENABLE_COVERAGE AND TARGET coverage_flags)
     target_link_libraries(unit_tests PRIVATE coverage_flags)
     target_link_libraries(TrafficLib PRIVATE coverage_flags)
-    target_link_libraries(TrafficSimulator PRIVATE coverage_flags)
+    target_link_libraries(TrafficFlow PRIVATE coverage_flags)
 endif()
 
 target_include_directories(unit_tests PRIVATE headers)
@@ -108,11 +108,11 @@ if(WIN32)
     set(GLFW_LIB_DIR "${CMAKE_SOURCE_DIR}/Dependencies/GLFW/lib-vc2022")
     # FreeGLUT
     set(GL_LIB_DIR "${CMAKE_SOURCE_DIR}/Dependencies/GL/lib")
-    target_link_directories(TrafficSimulator PRIVATE ${GLFW_LIB_DIR} ${GL_LIB_DIR})
+    target_link_directories(TrafficFlow PRIVATE ${GLFW_LIB_DIR} ${GL_LIB_DIR})
     target_link_directories(TrafficLib PRIVATE ${GLFW_LIB_DIR} ${GL_LIB_DIR})  # Also for lib if needed
     target_link_directories(unit_tests PRIVATE ${GLFW_LIB_DIR} ${GL_LIB_DIR})  # Also for tests if needed
     
-    target_link_libraries(TrafficSimulator PRIVATE
+    target_link_libraries(TrafficFlow PRIVATE
         glfw3
         freeglut
         opengl32
@@ -131,18 +131,18 @@ if(WIN32)
         shell32
     )  # If your lib needs these; adjust as necessary
     # Copy DLLs to output directory
-    add_custom_command(TARGET TrafficSimulator POST_BUILD
+    add_custom_command(TARGET TrafficFlow POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/Dependencies/GL/lib/freeglut.dll"
-        $<TARGET_FILE_DIR:TrafficSimulator>
+        $<TARGET_FILE_DIR:TrafficFlow>
     )
     
     # Check if glfw3.dll exists and copy it if so (it might be static)
     if(EXISTS "${GLFW_LIB_DIR}/glfw3.dll")
-        add_custom_command(TARGET TrafficSimulator POST_BUILD
+        add_custom_command(TARGET TrafficFlow POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${GLFW_LIB_DIR}/glfw3.dll"
-            $<TARGET_FILE_DIR:TrafficSimulator>
+            $<TARGET_FILE_DIR:TrafficFlow>
         )
     endif()
 
@@ -155,7 +155,7 @@ if(WIN32)
     # Warning flags for MSVC
     if(MSVC)
         target_compile_options(TrafficLib PRIVATE /W4 /permissive-)
-        target_compile_options(TrafficSimulator PRIVATE /W4 /permissive-)
+        target_compile_options(TrafficFlow PRIVATE /W4 /permissive-)
         target_compile_options(unit_tests PRIVATE /W4 /permissive-)
     endif()
 
@@ -166,7 +166,7 @@ elseif(UNIX AND NOT APPLE)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(GLFW3 REQUIRED glfw3)
 
-    target_link_libraries(TrafficSimulator PRIVATE
+    target_link_libraries(TrafficFlow PRIVATE
         ${OPENGL_LIBRARIES}
         ${GLUT_LIBRARIES}
         ${GLFW3_LIBRARIES}
@@ -188,12 +188,12 @@ elseif(UNIX AND NOT APPLE)
     )
     
     # Include directories
-    target_include_directories(TrafficSimulator PRIVATE ${GLFW3_INCLUDE_DIRS})
+    target_include_directories(TrafficFlow PRIVATE ${GLFW3_INCLUDE_DIRS})
     target_include_directories(TrafficLib PRIVATE ${GLFW3_INCLUDE_DIRS})
 
     # Warning flags for GCC/Clang
     target_compile_options(TrafficLib PRIVATE -Wall -Wextra -Wpedantic)
-    target_compile_options(TrafficSimulator PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(TrafficFlow PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(unit_tests PRIVATE -Wall -Wextra -Wpedantic)
 
 elseif(APPLE)
@@ -202,7 +202,7 @@ elseif(APPLE)
     find_package(GLUT REQUIRED)
     find_package(glfw3 REQUIRED)
     
-    target_link_libraries(TrafficSimulator PRIVATE
+    target_link_libraries(TrafficFlow PRIVATE
         ${OPENGL_LIBRARIES}
         ${GLUT_LIBRARIES}
         glfw
@@ -215,7 +215,7 @@ elseif(APPLE)
 
     # Warning flags for Clang
     target_compile_options(TrafficLib PRIVATE -Wall -Wextra -Wpedantic)
-    target_compile_options(TrafficSimulator PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(TrafficFlow PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(unit_tests PRIVATE -Wall -Wextra -Wpedantic)
 
 endif()
