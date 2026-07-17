@@ -1,7 +1,4 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
@@ -48,24 +45,24 @@
             "name": "Debug TrafficFlow (Windows)",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/Debug/TrafficFlow.exe",
+            "program": "${workspaceFolder}/build/TrafficFlow.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "console": "externalTerminal",
+            "externalConsole": true,
             "preLaunchTask": "CMake Build"
         },
         {
             "name": "Debug Unit Tests (Windows)",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/Debug/unit_tests.exe",
+            "program": "${workspaceFolder}/build/unit_tests.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "console": "externalTerminal",
+            "externalConsole": true,
             "preLaunchTask": "CMake Build"
         }
     ]
