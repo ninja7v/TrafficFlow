@@ -10,10 +10,7 @@
                 ".",
                 "-B",
                 "build",
-                "-G",
-                "Visual Studio 18 2026",
-                "-A",
-                "x64"
+                "-DCMAKE_BUILD_TYPE=Debug"
             ],
             "group": "build",
             "problemMatcher": []
@@ -32,7 +29,10 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "problemMatcher": "$msCompile",
+            "problemMatcher": [
+                "$gcc",
+                "$msCompile"
+            ],
             "dependsOn": "CMake Configure"
         }
     ]

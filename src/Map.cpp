@@ -15,6 +15,10 @@ std::vector<std::vector <double>> Map::cost = { constants::nbIntersections, std:
 std::vector<std::vector <double>> Map::live_cost = { constants::nbIntersections, std::vector<double>(constants::nbIntersections, INF_VAL) };
 
 Map::Map() {
+   connections = {};
+   cost.assign(constants::nbIntersections,
+               std::vector<double>(constants::nbIntersections, INF_VAL));
+   live_cost = cost;
 }
 
 std::list<Road*> Map::track(const Intersection* begin,

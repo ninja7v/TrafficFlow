@@ -269,6 +269,42 @@ TEST(IntersectionOperatorTest, Basic) {
     EXPECT_TRUE(nextAction2 == 0 || nextAction2 == 1);
 }
 
+TEST(IntersectionOperatorTest, QLearningImprovesActionChoice) {
+    QLearningOperator op;
+    const std::vector<int> state = {0, 1, 0, 1};
+    const std::vector<int> actions = {0, 1};
+
+    for (int i = 0; i < 1000; ++i) {
+        op.learn(state, 0, -1.0, state, {});
+        op.learn(state, 1, 1.0, state, {});
+    }
+
+    int preferredActionCount = 0;
+    for (int i = 0; i < 200; ++i) {
+        preferredActionCount += op.decide(state, actions) == 1;
+    }
+    EXPECT_GT(preferredActionCount, 170);
+}
+
+TEST(IntersectionOperatorTest, DQNImprovesActionChoice) {
+    DeepRLOperator op;
+    const std::vector<int> state = {0, 1, 0, 1};
+    const std::vector<int> actions = {0, 1};
+
+    // Initialize network, then train this state as a terminal contextual-bandit transition.
+    op.decide(state, actions);
+    for (int i = 0; i < 600; ++i) {
+        op.learn(state, 0, -1.0, state, {});
+        op.learn(state, 1, 0.0, state, {});
+    }
+
+    int preferredActionCount = 0;
+    for (int i = 0; i < 200; ++i) {
+        preferredActionCount += op.decide(state, actions) == 1;
+    }
+    EXPECT_GT(preferredActionCount, 185);
+}
+
 TEST(NeuralNetworkTest, BasicTraining) {
     std::vector<int> topology = {2, 4, 1};
     NeuralNetwork nn(topology, 0.1);

@@ -1,5 +1,5 @@
 // Libraries
-#include <iostream>
+#include <algorithm>
 // Headers
 #include "../headers/DeepRLOperator.h"
 #include "../headers/Constants.h"
@@ -21,6 +21,7 @@ int DeepRLOperator::decide(const std::vector<int>& state,
         const int outputSize = constants::maxConnectedInputRoads;
         // Topology: Input Layer -> 64 Hidden -> 64 Hidden -> Output Layer
         policyNetwork = NeuralNetwork({inputSize, 64, 64, outputSize}, alpha);
+        targetNetwork = policyNetwork;
         isInitialized = true;
     }
 
@@ -68,7 +69,7 @@ void DeepRLOperator::learn(const std::vector<int>& state,
     if (replayBuffer.size() >= maxBufferSize) {
         replayBuffer.erase(replayBuffer.begin());
     }
-    replayBuffer.push_back({s, action, reward, ns, false});
+    replayBuffer.push_back({s, action, reward, ns, availableActions});
 
     stepCount++;
     if (stepCount % trainingFrequency != 0) return;
@@ -81,12 +82,12 @@ void DeepRLOperator::learn(const std::vector<int>& state,
         const auto& exp = replayBuffer[dist(rng)];
 
         std::vector<double> targetQ = policyNetwork.predict(exp.state);
-        std::vector<double> nextQ = policyNetwork.predict(exp.nextState);
+        std::vector<double> nextQ = targetNetwork.predict(exp.nextState);
 
         double maxNextQ = -1e9;
         bool foundNext = false;
         
-        for (int nextAction : availableActions) {
+        for (int nextAction : exp.nextActions) {
              if (nextAction >= 0 && nextAction < static_cast<int>(nextQ.size())) {
                  if (nextQ[nextAction] > maxNextQ) {
                      maxNextQ = nextQ[nextAction];
@@ -109,6 +110,10 @@ void DeepRLOperator::learn(const std::vector<int>& state,
     // 3. Decay Epsilon
     // Reduce exploration rate over time to favor exploitation as the agent learns.
     if (epsilon > epsilonMin) {
-        epsilon *= epsilonDecay;
+        epsilon = std::max(epsilonMin, epsilon * epsilonDecay);
+    }
+
+    if (stepCount % targetUpdateFrequency == 0) {
+        targetNetwork = policyNetwork;
     }
 }
