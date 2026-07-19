@@ -79,3 +79,6 @@ imgui.ini
 
 # ClangD
 clangd/
+
+# Serena
+.serena/
