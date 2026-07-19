@@ -5,7 +5,7 @@
 #pragma once
 // Libraries
 #include <array>  // To use arrays
-#include <ctime>  // To use clock_t
+#include <chrono> // To use steady_clock
 #include <memory> // To use smart pointers
 #include <string> // To use strings
 #include <vector> // To use vectors
@@ -57,8 +57,8 @@ class Intersection {
  private:
    /** @brief Construct the dynamic learning state matrix. */
    std::vector<int> constructState() const;
-   /** @brief Calculate the current reward metrics. */
-   double calculateReward(double& currentDelay) const;
+   /** @brief Calculate normalized traffic-flow reward. */
+   double calculateReward() const;
    /** @brief Pass metrics to operator for mathematical learning. */
    void performLearning(const std::vector<int>& state,
                         double reward,
@@ -85,9 +85,7 @@ class Intersection {
    std::vector<int> lastState;
    /** Last action taken */
    int lastAction;
-   /** Last cumulative delay */
-   double lastDelay;
    /** Time of the last traffic light switch */
-   clock_t lastSwitchTime;
+   std::chrono::steady_clock::time_point lastSwitchTime;
    /**@}*/
 };

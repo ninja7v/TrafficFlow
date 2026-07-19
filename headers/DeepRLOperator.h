@@ -45,6 +45,7 @@ public:
 
 private:
     NeuralNetwork policyNetwork;
+    NeuralNetwork targetNetwork;
     bool isInitialized = false;
 
     // Structure to store a single transition (experience)
@@ -57,8 +58,8 @@ private:
         double reward;
         /** Resulting state */
         std::vector<double> nextState;
-        /** Is the episode finished? (Not used here but standard in RL) */
-        bool done;
+        /** Actions valid in the resulting state */
+        std::vector<int> nextActions;
     };
 
     /** Memory to store past experiences */
@@ -69,6 +70,8 @@ private:
     const size_t batchSize = 32;
     /** Train the network every N steps */
     const int trainingFrequency = 1;
+    /** Copy policy weights to the stable bootstrap network every N transitions. */
+    const int targetUpdateFrequency = 250;
     int stepCount = 0;
 
     // Hyperparameters

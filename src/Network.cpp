@@ -4,6 +4,7 @@
 #include <algorithm>                     // To use max
 #include <backends/imgui_impl_glfw.h>    // Platform backend: handles GLFW inputs and window events
 #include <backends/imgui_impl_opengl3.h> // Renderer backend: draws ImGui using OpenGL3
+#include <cstdlib>                       // To use std::getenv
 #include <ctime>                         // To use clock()
 #include <delaunator.hpp>                // To compute the Delaunay triangulation
 #include <imgui.h>                       // Core ImGui functionality (panel)
@@ -107,13 +108,21 @@ Network::Network() {
 }
 
 GLFWwindow* Network::initWindowAndImGui() {
+#if defined(__linux__) && defined(GLFW_PLATFORM_X11)
+   // GLFW's Wayland backend has no title bar when libdecor is unavailable.
+   if (std::getenv("DISPLAY") != nullptr && glfwPlatformSupported(GLFW_PLATFORM_X11)) {
+      glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+   }
+#endif
    // Initialize GLFW
    if (!glfwInit()) {
       return nullptr;
    }
-   // Create windows
+   glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+   glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+   // Create window
    GLFWwindow* window = glfwCreateWindow(constants::SCREEN_WIDTH, constants::SCREEN_HEIGHT,
-                                         "Traffic Simulator", nullptr, nullptr);
+                                          "Traffic Simulator", nullptr, nullptr);
    if (!window) {
       glfwTerminate();
       return nullptr;
@@ -127,9 +136,13 @@ GLFWwindow* Network::initWindowAndImGui() {
       logo.height = height;
       logo.pixels = pixels;
       glfwSetWindowIcon(window, 1, &logo);
+      stbi_image_free(pixels);
    }
    // Make the window's context current
    glfwMakeContextCurrent(window);
+   glfwSetFramebufferSizeCallback(window, [](GLFWwindow*, int width, int height) {
+      glViewport(0, 0, width, height);
+   });
    glViewport(0, 0, constants::SCREEN_WIDTH,
               constants::SCREEN_HEIGHT); // specifies the part of the window to
                                          // which OpenGL will draw (in pixels)

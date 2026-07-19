@@ -1,14 +1,13 @@
 // Libraries
 #include <GLFW/glfw3.h> // To display
-#include <ctime>        // To use clock() and clock_t
+#include <algorithm>    // To use clamp
+#include <chrono>       // To use steady_clock
 #include <memory>       // To use smart pointers
 #include <numeric>      // To use accumulate
 // Headers
 #include "../headers/Constants.h"
-#include "../headers/DeepRLOperator.h"
 #include "../headers/Global.h"
 #include "../headers/Intersection.h"
-#include "../headers/QLearningOperator.h"
 #include "../headers/Road.h"
 
 Intersection::Intersection(const int n,
@@ -21,8 +20,7 @@ Intersection::Intersection(const int n,
       op(op),
       currentGreenRoadIndex(0),
       lastAction(0),
-      lastDelay(0.0),
-      lastSwitchTime(clock()) {
+      lastSwitchTime(std::chrono::steady_clock::now()) {
 }
 
 bool Intersection::isRed(const int id) const {
@@ -64,6 +62,8 @@ bool Intersection::operator==(const Intersection i) {
 
 void Intersection::setOperator(std::shared_ptr<IntersectionOperator> newOp) {
    op = newOp;
+   lastState.clear();
+   lastSwitchTime = std::chrono::steady_clock::now();
 }
 
 int Intersection::computeHeuristicAction() const {
@@ -140,28 +140,21 @@ std::vector<int> Intersection::constructState() const {
    return state;
 }
 
-double Intersection::calculateReward(double& currentDelay) const {
-   double totalDelay = 0.0;
+double Intersection::calculateReward() const {
+   double totalSpeedLoss = 0.0;
    int numVehicles = 0;
    for (const Road* r : inputRoads) {
       for (const auto& v : r->getVehicles()) {
-         const double timeOnRoad = static_cast<double>(clock() - v->getEnterRoadTime()) /
-                                   static_cast<double>(CLOCKS_PER_SEC); // in seconds
-         const double dist = v->distance(r->getStart());
-         const double ideal = dist / v->getSpeedMax();
-         totalDelay += std::max(timeOnRoad - ideal, 0.0);
+         const double speedRatio = v->getSpeedMax() > 0.0
+                                       ? std::clamp(v->getSpeed() / v->getSpeedMax(), 0.0, 1.0)
+                                       : 0.0;
+         totalSpeedLoss += 1.0 - speedRatio;
          numVehicles++;
       }
    }
 
-   currentDelay = numVehicles > 0 ? (totalDelay / static_cast<double>(numVehicles)) : 0.0;
-
-   double rawDelta = lastDelay - currentDelay;
-   double reward = rawDelta / 5.0; 
-   if (reward > 1.0) reward = 1.0;
-   if (reward < -1.0) reward = -1.0;
-      
-   return reward;
+   // Zero means free-flowing traffic; -1 means every approaching vehicle is stopped.
+   return numVehicles > 0 ? -totalSpeedLoss / static_cast<double>(numVehicles) : 0.0;
 }
 
 void Intersection::performLearning(const std::vector<int>& state, double reward, const std::vector<int>& availableActions) {
@@ -175,9 +168,9 @@ void Intersection::update() {
       return;
 
    if (constants::learningType == LearningType::HEURISTIC) {
-      const clock_t now = clock();
-      const double timeSinceSwitch = static_cast<double>(now - lastSwitchTime) /
-                                     static_cast<double>(CLOCKS_PER_SEC); 
+      const auto now = std::chrono::steady_clock::now();
+      const double timeSinceSwitch =
+          std::chrono::duration<double>(now - lastSwitchTime).count();
       if (timeSinceSwitch > constants::trafficLightPeriod) {
          int action = computeHeuristicAction();
          if (action != -1) {
@@ -189,29 +182,24 @@ void Intersection::update() {
       return;
    }
 
-   std::vector<int> state = constructState();
-
-   double currentDelay = 0.0;
-   double reward = calculateReward(currentDelay);
-
-   std::vector<int> availableActions;
-   for (size_t i = 0; i < inputRoads.size(); ++i) {
-      availableActions.push_back(static_cast<int>(i));
-   }
-
-   performLearning(state, reward, availableActions);
-
-   const clock_t now = clock();
-   const double timeSinceSwitch = static_cast<double>(now - lastSwitchTime) /
-                                  static_cast<double>(CLOCKS_PER_SEC); 
+   const auto now = std::chrono::steady_clock::now();
+   const double timeSinceSwitch =
+       std::chrono::duration<double>(now - lastSwitchTime).count();
    if (timeSinceSwitch > constants::trafficLightPeriod) {
+      const std::vector<int> state = constructState();
+      std::vector<int> availableActions;
+      for (size_t i = 0; i < inputRoads.size(); ++i) {
+         availableActions.push_back(static_cast<int>(i));
+      }
+
+      // One learning update represents one complete action interval.
+      performLearning(state, calculateReward(), availableActions);
       const int action = op->decide(state, availableActions);
 
       if (action != -1) {
          currentGreenRoadIndex = action;
          lastAction = action;
          lastState = state;
-         lastDelay = currentDelay;
          lastSwitchTime = now;
       }
    }
