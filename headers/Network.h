@@ -21,6 +21,12 @@ public:
    /** @brief Default constructor.
     * @returns Network */
    Network();
+   /** @brief Constructor with a fixed random seed (reproducible network and traffic).
+    * @param seed Random seed */
+   explicit Network(unsigned int seed);
+   /** @brief Use a custom operator for every intersection (e.g. to compare with a baseline).
+    * @param op Operator, nullptr for the heuristic */
+   void setOperator(std::shared_ptr<IntersectionOperator> op);
    /** @brief Network display (opens a window and runs the simulation in real time).
     * @param maxFrames Optional parameter restricting total frames to process for the tests (0 = infinite). */
    void displayNetwork(int maxFrames = 0);
@@ -45,6 +51,9 @@ public:
     * @param id Intersection ID
     * @returns Intersection, nullptr if the ID is not valid */
    const Intersection* getIntersection(int id) const;
+   /** @brief Getter.
+    * @returns Roads */
+   const std::vector<std::unique_ptr<Road>>& getRoads() const;
    /** Duration of one simulation step in seconds (the simulation runs at a fixed rate, independent of the FPS). */
    static constexpr double timeStep{ 1.0 / 60.0 };
 

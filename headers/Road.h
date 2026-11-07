@@ -29,6 +29,23 @@ public:
 /** @brief Add vehicle to the Road.
   * @param v Vehicle to add */
    void addVehicle(std::shared_ptr<Vehicle> v);
+/** @brief Free length at the start of the road, behind the last vehicle (grid units).
+  * @returns Free length (the road length if empty) */
+   double getFreeLengthAtStart() const;
+/** @brief Check that a vehicle can enter the road without overlapping the last one.
+  * Uses the same spacing as the car-following model (Vehicle::distance).
+  * @param v Vehicle entering
+  * @returns Enough space? */
+   bool canEnter(const Vehicle& v) const;
+/** @brief Check that a car could not enter (the queue reaches the start of the road).
+  * @returns Full? */
+   bool isFull() const;
+/** @brief Get number of vehicles that left the road (crossed its end intersection) since the start.
+  * @returns Number of vehicles */
+   int getNumberOfDepartedVehicles() const;
+/** @brief Get number of vehicles queuing (almost stopped).
+  * @returns Number of vehicles */
+   int getQueueLength() const;
 /** @brief Remove the first vehicle of the Road. */
    void removeVehicle();
 /** @brief Advance the vehicles for the next frame. */
@@ -79,6 +96,8 @@ private:
    std::list<std::shared_ptr<Vehicle>> Vehicles;
 /** Number of vehicles that have arrived on this road since the start of the simulation */
    int totalNumberOfArringVehicles;
+/** Number of vehicles that left this road since the start of the simulation */
+   int departedVehicles = 0;
 /** Orientation of the Road */
    std::array<double, 2> direction;
 /** Road coordinates */

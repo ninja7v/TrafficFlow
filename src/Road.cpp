@@ -54,8 +54,38 @@ void Road::addVehicle(std::shared_ptr<Vehicle> v) {
    }
 }
 
+double Road::getFreeLengthAtStart() const {
+   if (Vehicles.empty())
+      return length;
+   const auto& last = Vehicles.back();
+   const std::vector<double>& p = last->getPosition();
+   const std::vector<double>& s = i1->getPosition();
+   // Vehicle sizes are in pixels; the car-following model converts them with a factor 1/7.
+   return std::hypot(p[0] - s[0], p[1] - s[1]) - last->getHeight() / 7.0;
+}
+
+bool Road::canEnter(const Vehicle& v) const {
+   return getFreeLengthAtStart() - v.getHeight() / 7.0 > constants::distanceSecurity;
+}
+
+bool Road::isFull() const {
+   return getFreeLengthAtStart() - constants::heightCar / 7.0 <= constants::distanceSecurity;
+}
+
+int Road::getNumberOfDepartedVehicles() const {
+   return departedVehicles;
+}
+
+int Road::getQueueLength() const {
+   int queue = 0;
+   for (const auto& v : Vehicles)
+      queue += v->getSpeed() < 0.1 * v->getSpeedMax();
+   return queue;
+}
+
 void Road::removeVehicle() {
    Vehicles.pop_front();
+   departedVehicles++;
 }
 
 void Road::moveVehicles() {
@@ -76,9 +106,7 @@ void Road::moveVehicles() {
                global::numberOfVehicles -= 1;
             }
             else {
-               const bool isEnoughSpace = !v->nextRoad()->containVehicle() ||
-                  v->nextRoad()->getVehicles().back()->distance(i2) > constants::distanceSecurity + v->getHeight();
-               if (isEnoughSpace) {
+               if (v->nextRoad()->canEnter(*v)) {
                   v->nextRoad()->addVehicle(v);
                   v->updateItinerary();
                   this->removeVehicle();

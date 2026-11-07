@@ -196,7 +196,7 @@ Intersection* Vehicle::getDestination() const {
    return destination;
 }
 
-std::vector<double> Vehicle::getPosition() const {
+const std::vector<double>& Vehicle::getPosition() const {
    return position;
 }
 

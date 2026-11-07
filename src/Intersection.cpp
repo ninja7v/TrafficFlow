@@ -64,53 +64,47 @@ void Intersection::setOperator(std::shared_ptr<IntersectionOperator> newOp) {
    lastState.clear();
 }
 
+namespace {
+   /** The front vehicle of the road would leave it if the light were green (not blocked downstream). */
+   bool canDischarge(const Road* r) {
+      if (!r->containVehicle())
+         return false;
+      const auto& front = r->getVehicles().front();
+      const Road* next = front->nextRoad();
+      return !next || next->canEnter(*front);
+   }
+}
+
 int Intersection::computeHeuristicAction() const {
    if (inputRoads.empty())
       return -1;
 
-   // Check if we should keep the current light green
+   // Keep the current light green while its first vehicle is approaching and can go through.
+   // A blocked vehicle must not hold the green: that starves the other roads (gridlock).
    if (currentGreenRoadIndex >= 0 && currentGreenRoadIndex < static_cast<int>(inputRoads.size())) {
       const Road* currentGreen = inputRoads[currentGreenRoadIndex];
-      if (!currentGreen->getVehicles().empty()) {
-         auto firstCar = currentGreen->getVehicles().front();
-         double distToIntersection =
-             currentGreen->getLength() - firstCar->distance(currentGreen->getStart());
-         // If the first car is within an approaching threshold, keep it green
-         if (distToIntersection < constants::heightCar * 3.0) {
-            return currentGreenRoadIndex;
-         }
+      constexpr double approachingDistance = 2.0; // Grid units
+      if (canDischarge(currentGreen) &&
+          currentGreen->getVehicles().front()->distance(currentGreen->getEnd()) < approachingDistance) {
+         return currentGreenRoadIndex;
       }
    }
 
-   // 1. Check for "full road"
-   int maxCars = -1;
+   // Otherwise, among the roads whose traffic can go through: a full road first, then the
+   // road with the most vehicles.
    int choosenRoad = -1;
-
+   size_t bestScore = 0;
    for (size_t i = 0; i < inputRoads.size(); ++i) {
       const Road* r = inputRoads[i];
-      if (!r->getVehicles().empty()) {
-         auto lastCar = r->getVehicles().back();
-         // A road is "full" if the last car is very close to the start of the road
-         if (lastCar->distance(r->getStart()) <=
-             constants::heightCar + 2.0 * constants::distanceSecurity) {
-            return static_cast<int>(i); // Priority 1: full road
-         }
-      }
-
-      int numCars = static_cast<int>(r->getVehicles().size());
-      if (numCars > maxCars) {
-         maxCars = numCars;
+      if (!canDischarge(r))
+         continue;
+      const size_t score = r->getVehicles().size() + (r->isFull() ? 1000 : 0);
+      if (score > bestScore) {
+         bestScore = score;
          choosenRoad = static_cast<int>(i);
       }
    }
-
-   // 2. Road containing the most cars
-   if (choosenRoad != -1 && maxCars > 0) {
-      return choosenRoad;
-   }
-
-   // Default to keeping the current green or picking arbitrarily
-   return currentGreenRoadIndex;
+   return choosenRoad != -1 ? choosenRoad : currentGreenRoadIndex;
 }
 
 std::vector<int> Intersection::constructState() const {
@@ -138,21 +132,19 @@ std::vector<int> Intersection::constructState() const {
    return state;
 }
 
-double Intersection::calculateReward() const {
-   double totalSpeedLoss = 0.0;
-   int numVehicles = 0;
+double Intersection::calculateReward() {
+   int departures = 0;
+   int queue = 0;
    for (const Road* r : inputRoads) {
-      for (const auto& v : r->getVehicles()) {
-         const double speedRatio = v->getSpeedMax() > 0.0
-                                       ? std::clamp(v->getSpeed() / v->getSpeedMax(), 0.0, 1.0)
-                                       : 0.0;
-         totalSpeedLoss += 1.0 - speedRatio;
-         numVehicles++;
-      }
+      departures += r->getNumberOfDepartedVehicles();
+      queue += r->getQueueLength();
    }
-
-   // Zero means free-flowing traffic; -1 means every approaching vehicle is stopped.
-   return numVehicles > 0 ? -totalSpeedLoss / static_cast<double>(numVehicles) : 0.0;
+   const int throughput = departures - lastDepartures;
+   lastDepartures = departures;
+   // Throughput is what the flow metric measures. The queue penalty makes the agent care about
+   // how many vehicles wait (a mean over vehicles, as before, cannot tell 1 from 15 stopped cars).
+   // Scaled to stay around [-1, 1] for typical intersections.
+   return throughput / 5.0 - queue / 20.0;
 }
 
 void Intersection::performLearning(const std::vector<int>& state, double reward, const std::vector<int>& availableActions) {

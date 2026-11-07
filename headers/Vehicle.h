@@ -72,7 +72,7 @@ public:
    Intersection* getDestination() const;
    /** @brief Getter.
     * @return Vehicle position */
-   std::vector<double> getPosition() const;
+   const std::vector<double>& getPosition() const;
    /** @brief Getter.
     * @return Vehicle speed max */
    virtual double getSpeedMax() const = 0;

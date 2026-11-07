@@ -71,6 +71,29 @@ TEST(RoadTest, VehicleMovement) {
     EXPECT_FALSE(car2->getStatus());
 }
 
+TEST(RoadTest, CapacityQueueAndDepartures) {
+    auto i1 = std::make_unique<Intersection>(1, std::vector<double>{0.0, 0.0});
+    auto i2 = std::make_unique<Intersection>(2, std::vector<double>{0.0, 10.0});
+    auto r = std::make_unique<Road>(1, i1.get(), i2.get());
+    auto car1 = std::make_shared<Car>(i1.get(), i2.get(), 1, i2.get(), std::list<Road*>{});
+    auto car2 = std::make_shared<Car>(i1.get(), i2.get(), 2, i2.get(), std::list<Road*>{});
+
+    EXPECT_TRUE(r->canEnter(*car1));
+    EXPECT_FALSE(r->isFull());
+    r->addVehicle(car1);
+    // car1 still sits on the road start: no room for another vehicle
+    EXPECT_FALSE(r->canEnter(*car2));
+    EXPECT_TRUE(r->isFull());
+    EXPECT_EQ(r->getQueueLength(), 1); // Stopped
+    // Once car1 moved away by more than the vehicles' spacing, car2 can enter
+    car1->setPosition({0.0, 3.0});
+    EXPECT_TRUE(r->canEnter(*car2));
+
+    EXPECT_EQ(r->getNumberOfDepartedVehicles(), 0);
+    r->removeVehicle();
+    EXPECT_EQ(r->getNumberOfDepartedVehicles(), 1);
+}
+
 // ------------------------- Map tests -------------------------
 TEST(MapTest, Connections) {
     auto i1 = std::make_unique<Intersection>(1, std::vector<double>{0.0, 0.0});
@@ -229,6 +252,25 @@ TEST_P(NetworkRoadsTest, PathExistsBetweenAnyTwoIntersections) {
 }
 
 INSTANTIATE_TEST_SUITE_P(OneWayRatios, NetworkRoadsTest, ::testing::Values(0.0, 0.3, 1.0));
+
+// The heuristic used to keep the green for a vehicle blocked downstream, and the space check used
+// pixel sizes as grid units: the network locked up (no more trips) within a few minutes.
+TEST(NetworkHeadlessTest, NoGridlock) {
+    ConstantsGuard guard;
+    constants::learningType = LearningType::HEURISTIC;
+    constants::boost = 1.0;
+    constants::updateBoostDependentConstants();
+    for (unsigned int seed = 1; seed <= 3; ++seed) {
+        Network n(seed);
+        const int stepsPerMinute = static_cast<int>(60.0 / Network::timeStep);
+        for (int k = 0; k < 10 * stepsPerMinute; ++k)
+            n.step();
+        const int completed = n.getCompletedVehicles();
+        for (int k = 0; k < 2 * stepsPerMinute; ++k)
+            n.step();
+        EXPECT_GT(n.getCompletedVehicles() - completed, 100) << "seed " << seed;
+    }
+}
 
 INSTANTIATE_TEST_SUITE_P(AllOperators, NetworkHeadlessTest,
                          ::testing::Values(LearningType::Q_LEARNING, LearningType::DQN,

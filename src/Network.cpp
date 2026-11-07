@@ -27,8 +27,18 @@
 #include "../headers/QLearningOperator.h"
 #include "../headers/Truck.h"
 
-Network::Network() {
-   srand(static_cast<unsigned int>(time(nullptr)));
+Network::Network() : Network(static_cast<unsigned int>(time(nullptr))) {}
+
+void Network::setOperator(std::shared_ptr<IntersectionOperator> op) {
+   globalOperator = op;
+   for (const auto& i : Intersections) {
+      if (i)
+         i->setOperator(globalOperator);
+   }
+}
+
+Network::Network(const unsigned int seed) {
+   srand(seed);
    // Global Intersection Operator
    qLearningOp = std::make_shared<QLearningOperator>();
    deepRLOp = std::make_shared<DeepRLOperator>();
@@ -336,6 +346,10 @@ int Network::getIntersectionCount() const {
    return static_cast<int>(Intersections.size());
 }
 
+const std::vector<std::unique_ptr<Road>>& Network::getRoads() const {
+   return Roads;
+}
+
 const Intersection* Network::getIntersection(const int id) const {
    return (id >= 0 && id < getIntersectionCount()) ? Intersections[id].get() : nullptr;
 }
@@ -414,43 +428,35 @@ void Network::addVehicle() {
       } while (destination == idStart);
       return Intersections[destination].get();
    };
-   if (static_cast<int>(Vehicles.size()) < constants::nbVehicleMax)
-      for (const auto& r : Roads) {
-         if (r &&
-             ((r->containVehicle() && r->getVehicles().back()->distance(r->getStart()) > 0.001) ||
-              !r->containVehicle()) &&
-             rand() % 100 < constants::flow) {
-            Intersection* destination = target(r->getEnd()->getID());
-            // Generate a random number to select the vehicle type
-            int vehicleType = rand() % 3;
-            // Create the appropriate vehicle based on the random type
-            std::shared_ptr<Vehicle> v;
-            switch (vehicleType) {
-            case 0: {
-               v = std::make_shared<Car>(r->getStart(), r->getEnd(), nextVehicleId, destination,
-                                         map.track(r->getEnd(), destination));
-               break;
-            }
-            case 1: {
-               v = std::make_shared<Bike>(r->getStart(), r->getEnd(), nextVehicleId, destination,
-                                          map.track(r->getEnd(), destination));
-               break;
-            }
-            case 2: {
-               v = std::make_shared<Truck>(r->getStart(), r->getEnd(), nextVehicleId, destination,
-                                           map.track(r->getEnd(), destination));
-               break;
-            }
-            }
-            nextVehicleId++;
-            Vehicles.push_back(v);
-            r->addVehicle(v);
-            global::numberOfVehicles += 1;
-         }
-         if (static_cast<int>(Vehicles.size()) >= constants::nbVehicleMax) {
-            break;
-         }
+   if (static_cast<int>(Vehicles.size()) >= constants::nbVehicleMax)
+      return;
+   for (const auto& r : Roads) {
+      if (!r || rand() % 100 >= constants::flow)
+         continue;
+      Intersection* destination = target(r->getEnd()->getID());
+      const std::list<Road*> itinerary = map.track(r->getEnd(), destination);
+      // Random vehicle type
+      std::shared_ptr<Vehicle> v;
+      switch (rand() % 3) {
+      case 0:
+         v = std::make_shared<Car>(r->getStart(), r->getEnd(), nextVehicleId, destination, itinerary);
+         break;
+      case 1:
+         v = std::make_shared<Bike>(r->getStart(), r->getEnd(), nextVehicleId, destination, itinerary);
+         break;
+      default:
+         v = std::make_shared<Truck>(r->getStart(), r->getEnd(), nextVehicleId, destination, itinerary);
+         break;
       }
+      if (!r->canEnter(*v))
+         continue; // No room at the start of the road
+      nextVehicleId++;
+      Vehicles.push_back(v);
+      r->addVehicle(v);
+      global::numberOfVehicles += 1;
+      if (static_cast<int>(Vehicles.size()) >= constants::nbVehicleMax)
+         break;
+   }
 }
 
 void Network::updateVehiclesPosition() {

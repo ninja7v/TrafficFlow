@@ -57,8 +57,10 @@ class Intersection {
  private:
    /** @brief Construct the dynamic learning state matrix. */
    std::vector<int> constructState() const;
-   /** @brief Calculate normalized traffic-flow reward. */
-   double calculateReward() const;
+   /** @brief Reward of the last action interval: vehicles that crossed the intersection
+    * (flow) minus a penalty for the vehicles queuing on the input roads.
+    * Updates the departure counter, so call it once per decision. */
+   double calculateReward();
    /** @brief Pass metrics to operator for mathematical learning. */
    void performLearning(const std::vector<int>& state,
                         double reward,
@@ -83,6 +85,8 @@ class Intersection {
    int currentGreenRoadIndex;
    /** Last state observed */
    std::vector<int> lastState;
+   /** Departures from the input roads counted at the last decision */
+   int lastDepartures = 0;
    /** Last action taken */
    int lastAction;
    /** Simulation time (s) of the last traffic light decision */
