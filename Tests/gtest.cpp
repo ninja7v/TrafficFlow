@@ -9,6 +9,7 @@
 #include "../headers/Car.h"
 #include "../headers/Truck.h"
 #include "../headers/Constants.h"
+#include "../headers/Graph.h"
 #include "../headers/Road.h"
 #include "../headers/Map.h"
 #include "../headers/Network.h"
@@ -98,19 +99,68 @@ TEST(MapTest, Connections) {
 struct ConstantsGuard {
     ConstantsGuard()
         : learningType(constants::learningType), boost(constants::boost),
-          flow(constants::flow), nbVehicleMax(constants::nbVehicleMax) {}
+          flow(constants::flow), nbVehicleMax(constants::nbVehicleMax),
+          oneWayRoadRatio(constants::oneWayRoadRatio) {}
     ~ConstantsGuard() {
         constants::learningType = learningType;
         constants::boost = boost;
         constants::updateBoostDependentConstants();
         constants::flow = flow;
         constants::nbVehicleMax = nbVehicleMax;
+        constants::oneWayRoadRatio = oneWayRoadRatio;
     }
     LearningType learningType;
     double boost;
     int flow;
     int nbVehicleMax;
+    double oneWayRoadRatio;
 };
+
+// ------------------------- Graph tests -------------------------
+TEST(GraphTest, StronglyConnected) {
+    EXPECT_TRUE(graph::isStronglyConnected(3, {{0, 1}, {1, 2}, {2, 0}}));
+    EXPECT_FALSE(graph::isStronglyConnected(3, {{0, 1}, {1, 2}}));
+    EXPECT_FALSE(graph::isStronglyConnected(3, {{0, 1}, {1, 0}})); // Node 2 isolated
+}
+
+TEST(GraphTest, OrientEdgesRatioExtremes) {
+    std::mt19937 rng(42);
+    const std::vector<graph::Edge> path = {{0, 1}, {1, 2}, {2, 3}};
+    // No one-way road: every edge is two-way.
+    EXPECT_EQ(graph::orientEdges(4, path, 0.0, rng).size(), 6u);
+    // Only one-way roads requested, but on a path every road must be two-way to connect.
+    const auto edges = graph::orientEdges(4, path, 1.0, rng);
+    EXPECT_EQ(edges.size(), 6u);
+    EXPECT_TRUE(graph::isStronglyConnected(4, edges));
+    // On a cycle, all one-way roads can stay one-way only if they all turn the same way.
+    const std::vector<graph::Edge> cycle = {{0, 1}, {1, 2}, {2, 3}, {0, 3}};
+    for (int seed = 0; seed < 50; ++seed) {
+        std::mt19937 r(seed);
+        EXPECT_TRUE(graph::isStronglyConnected(4, graph::orientEdges(4, cycle, 1.0, r)));
+    }
+}
+
+TEST(GraphTest, OrientEdgesKeepsOneWayRoadsAndConnectivity) {
+    // Triangulated grid: 4x4 nodes
+    std::vector<graph::Edge> mesh;
+    auto node = [](int x, int y) { return 4 * y + x; };
+    for (int y = 0; y < 4; ++y)
+        for (int x = 0; x < 4; ++x) {
+            if (x < 3) mesh.push_back({node(x, y), node(x + 1, y)});
+            if (y < 3) mesh.push_back({node(x, y), node(x, y + 1)});
+            if (x < 3 && y < 3) mesh.push_back({node(x, y), node(x + 1, y + 1)});
+        }
+    size_t totalOneWay = 0;
+    for (int seed = 0; seed < 100; ++seed) {
+        std::mt19937 rng(seed);
+        const auto edges = graph::orientEdges(16, mesh, 0.5, rng);
+        ASSERT_TRUE(graph::isStronglyConnected(16, edges)) << "seed " << seed;
+        ASSERT_GE(edges.size(), mesh.size());
+        ASSERT_LE(edges.size(), 2 * mesh.size());
+        totalOneWay += 2 * mesh.size() - edges.size();
+    }
+    EXPECT_GT(totalOneWay, 0u); // One-way roads are kept when possible
+}
 
 TEST(MapTest, LiveCostStaysFiniteWhenRoadStartIsOccupied) {
     auto i1 = std::make_unique<Intersection>(1, std::vector<double>{0.0, 0.0});
@@ -154,6 +204,31 @@ TEST_P(NetworkHeadlessTest, SimulationRuns) {
     EXPECT_GT(n.getVehicleCount(), 0);
     EXPECT_GT(n.getCompletedVehicles(), 0); // Some trips must be completed
 }
+
+class NetworkRoadsTest : public ::testing::TestWithParam<double> {};
+
+TEST_P(NetworkRoadsTest, PathExistsBetweenAnyTwoIntersections) {
+    ConstantsGuard guard;
+    constants::oneWayRoadRatio = GetParam();
+    for (int attempt = 0; attempt < 10; ++attempt) { // Several random networks
+        Network n;
+        for (int a = 0; a < n.getIntersectionCount(); ++a) {
+            for (int b = 0; b < n.getIntersectionCount(); ++b) {
+                if (a == b)
+                    continue;
+                const auto path = Map::track(n.getIntersection(a), n.getIntersection(b));
+                ASSERT_FALSE(path.empty()) << a << " -> " << b;
+                EXPECT_EQ(path.front()->getStart()->getID(), a);
+                EXPECT_EQ(path.back()->getEnd()->getID(), b);
+                for (auto it = path.begin(); std::next(it) != path.end(); ++it) {
+                    EXPECT_EQ((*it)->getEnd(), (*std::next(it))->getStart());
+                }
+            }
+        }
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(OneWayRatios, NetworkRoadsTest, ::testing::Values(0.0, 0.3, 1.0));
 
 INSTANTIATE_TEST_SUITE_P(AllOperators, NetworkHeadlessTest,
                          ::testing::Values(LearningType::Q_LEARNING, LearningType::DQN,

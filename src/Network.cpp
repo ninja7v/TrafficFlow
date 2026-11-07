@@ -12,7 +12,8 @@
 #include <iostream>                      // To use std::cout
 #include <memory>                        // To use smart pointers
 #include <stb/stb_image.h>               // To use stbi_load()
-#include <unordered_map>                 // To use unordered_map
+#include <random>                        // To use std::mt19937
+#include <set>                           // To use sets
 #include <vector>                        // To use vectors
 
 // Headers
@@ -21,25 +22,10 @@
 #include "../headers/Constants.h"
 #include "../headers/DeepRLOperator.h"
 #include "../headers/Global.h"
+#include "../headers/Graph.h"
 #include "../headers/Network.h"
 #include "../headers/QLearningOperator.h"
 #include "../headers/Truck.h"
-
-struct VectorHash {
-   size_t operator()(const std::vector<double>& vec) const {
-      size_t seed = 0;
-      for (const auto& i : vec) {
-         seed ^= std::hash<double>{}(i) + 0 + (seed << 6) + (seed >> 2); //+0x9e3779b9
-      }
-      return seed;
-   }
-};
-
-struct VectorEqual {
-   bool operator()(const std::vector<double>& vec1, const std::vector<double>& vec2) const {
-      return vec1 == vec2;
-   }
-};
 
 Network::Network() {
    srand(static_cast<unsigned int>(time(nullptr)));
@@ -66,7 +52,6 @@ Network::Network() {
       }
       return true;
    };
-   std::unordered_map<std::vector<double>, Intersection*, VectorHash, VectorEqual> card;
    std::vector<double> positions; // x0, y0, x1, y1, ...
    for (int k = 0; k < constants::nbIntersections; k++) {
       std::vector<double> position(2);
@@ -77,29 +62,29 @@ Network::Network() {
       positions.push_back(position[0]);
       positions.push_back(position[1]);
       Intersections.push_back(std::make_unique<Intersection>(k, position, globalOperator));
-      card.emplace(position, Intersections.back().get()); //
    }
-   // Roads
-   delaunator::Delaunator d(positions); // Informations here:
-                                        // https://github.com/delfrrr/delaunator-cpp
-   int id = 0;
+   // Roads: the Delaunay triangulation gives a connected planar graph, where point k is
+   // Intersections[k]. Informations here: https://github.com/delfrrr/delaunator-cpp
+   const delaunator::Delaunator d(positions);
+   std::set<graph::Edge> undirectedEdges; // Each triangle side once (shared sides appear twice)
    for (size_t i = 0; i < d.triangles.size(); i += 3) {
-      // 3 iterations for the 3 sides
-      for (int j = 0; j < 3; j++) {
-         const int l = j == 2 ? 0 : j + 1;
-         std::vector<double> begin{d.coords[2 * d.triangles[i + j]],
-                                   d.coords[2 * d.triangles[i + j] + 1]};
-         std::vector<double> end{d.coords[2 * d.triangles[i + l]],
-                                 d.coords[2 * d.triangles[i + l] + 1]};
-         auto r = std::make_unique<Road>(id, card[begin], card[end]);
-         if (r) {
-            Road* r_ptr = r.get();
-            Roads.push_back(std::move(r));
-            map.setConnection(card[begin]->getID(), card[end]->getID(), r_ptr);
-            card[end]->addInputRoad(r_ptr);
-            id++;
-         }
+      for (size_t j = 0; j < 3; j++) {
+         const int a = static_cast<int>(d.triangles[i + j]);
+         const int b = static_cast<int>(d.triangles[i + (j + 1) % 3]);
+         undirectedEdges.insert({std::min(a, b), std::max(a, b)});
       }
+   }
+   std::mt19937 rng(static_cast<unsigned int>(rand()));
+   const std::vector<graph::Edge> roads = graph::orientEdges(
+       constants::nbIntersections, {undirectedEdges.begin(), undirectedEdges.end()},
+       constants::oneWayRoadRatio, rng);
+   int id = 0;
+   for (const auto& [a, b] : roads) {
+      Intersection* begin = Intersections[a].get();
+      Intersection* end = Intersections[b].get();
+      Roads.push_back(std::make_unique<Road>(id++, begin, end));
+      map.setConnection(a, b, Roads.back().get());
+      end->addInputRoad(Roads.back().get());
    }
    // Constants
    for (const auto& i : Intersections) {
@@ -349,6 +334,10 @@ int Network::getRoadCount() const {
 
 int Network::getIntersectionCount() const {
    return static_cast<int>(Intersections.size());
+}
+
+const Intersection* Network::getIntersection(const int id) const {
+   return (id >= 0 && id < getIntersectionCount()) ? Intersections[id].get() : nullptr;
 }
 
 void Network::displayNetwork(int maxFrames /*Used by tests*/) {

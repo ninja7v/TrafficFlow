@@ -81,6 +81,7 @@ void Map::setConnection(const int a,
    if (r && (a >= 0) && (b >= 0) && (a < constants::nbIntersections) && (b < constants::nbIntersections)) {
       connections[a][b] = r;
       cost[a][b] = r->getLength();
+      live_cost[a][b] = cost[a][b]; // Usable by track() before the first live update
    }
 }
 

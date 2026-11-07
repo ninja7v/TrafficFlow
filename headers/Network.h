@@ -41,6 +41,10 @@ public:
    /** @brief Getter.
     * @returns Number of intersections */
    int getIntersectionCount() const;
+   /** @brief Getter.
+    * @param id Intersection ID
+    * @returns Intersection, nullptr if the ID is not valid */
+   const Intersection* getIntersection(int id) const;
    /** Duration of one simulation step in seconds (the simulation runs at a fixed rate, independent of the FPS). */
    static constexpr double timeStep{ 1.0 / 60.0 };
 
