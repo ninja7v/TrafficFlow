@@ -27,6 +27,12 @@ public:
    /** @brief Use a custom operator for every intersection (e.g. to compare with a baseline).
     * @param op Operator, nullptr for the heuristic */
    void setOperator(std::shared_ptr<IntersectionOperator> op);
+   /** @brief Print the whole control panel in the terminal (every 5 s) instead of a one-line summary.
+    * @param enabled Full terminal output? */
+   void setTerminalOutput(bool enabled);
+   /** @brief Print the panel values in the terminal. */
+   void printTerminalOutput(double smoothedFlowPerMin, double smoothedAvgSpeed, int lastFPS,
+                            double elapsedSimulationMinutes) const;
    /** @brief Network display (opens a window and runs the simulation in real time).
     * @param maxFrames Optional parameter restricting total frames to process for the tests (0 = infinite). */
    void displayNetwork(int maxFrames = 0);
@@ -75,6 +81,8 @@ private:
    std::shared_ptr<IntersectionOperator> globalOperator;
    /** Is the simulation paused? */
    bool isPaused = false;
+   /** Print the whole control panel in the terminal? */
+   bool terminalOutput = false;
    /** Road Map. */
    Map map;
    /** Intersections. */

@@ -4,6 +4,7 @@
 #include <list>           // for std::list
 #include <array>          // for std::array
 #include <vector>         // for std::vector
+#include <string>         // for std::string
 // Headers
 #include "../headers/Bike.h"
 #include "../headers/Car.h"
@@ -275,6 +276,23 @@ TEST(NetworkHeadlessTest, NoGridlock) {
 INSTANTIATE_TEST_SUITE_P(AllOperators, NetworkHeadlessTest,
                          ::testing::Values(LearningType::Q_LEARNING, LearningType::DQN,
                                            LearningType::HEURISTIC));
+
+TEST(NetworkTest, TerminalOutput) {
+    Network n(1);
+    testing::internal::CaptureStdout();
+    n.printTerminalOutput(12.5, 3.0, 60, 1.0);
+    const std::string summary = testing::internal::GetCapturedStdout();
+    EXPECT_NE(summary.find("Flow/min: 12.5"), std::string::npos);
+    EXPECT_EQ(summary.find("Control Panel"), std::string::npos);
+
+    n.setTerminalOutput(true);
+    testing::internal::CaptureStdout();
+    n.printTerminalOutput(12.5, 3.0, 60, 1.0);
+    const std::string panel = testing::internal::GetCapturedStdout();
+    for (const char* field : {"Control Panel", "FPS: 60", "Flow: 12.5", "Boost:", "Method:", "State: PLAYING"}) {
+        EXPECT_NE(panel.find(field), std::string::npos) << field;
+    }
+}
 
 // These open a window: they exercise the rendering path when a display is available
 // and return immediately otherwise.

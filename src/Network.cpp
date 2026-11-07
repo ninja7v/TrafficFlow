@@ -174,6 +174,36 @@ GLFWwindow* Network::initWindowAndImGui() {
    return window;
 }
 
+void Network::setTerminalOutput(const bool enabled) {
+   terminalOutput = enabled;
+}
+
+void Network::printTerminalOutput(const double smoothedFlowPerMin,
+                                  const double smoothedAvgSpeed,
+                                  const int lastFPS,
+                                  const double elapsedSimulationMinutes) const {
+   if (!terminalOutput) {
+      std::cout << "Time: " << elapsedSimulationMinutes << "m | Flow/min: " << smoothedFlowPerMin
+                << " | AvgSpeed: " << smoothedAvgSpeed << std::endl;
+      return;
+   }
+   const char* methods[] = {"Q-Learning", "DQN", "Heuristic"};
+   std::cout << "========== Control Panel ==========" << '\n'
+             << "Time: " << elapsedSimulationMinutes << " min (simulation)" << '\n'
+             << "FPS: " << lastFPS << '\n'
+             << "Intersections: " << constants::nbIntersections << '\n'
+             << "Roads: " << Roads.size() << '\n'
+             << "Vehicles: " << Vehicles.size() << '\n'
+             << "Completed trips: " << completedVehicles << '\n'
+             << "Flow: " << smoothedFlowPerMin << " Trips/min" << '\n'
+             << "Avg Speed: " << smoothedAvgSpeed << " px/s" << '\n'
+             << "Boost: " << constants::boost << '\n'
+             << "Max Vehicles: " << constants::nbVehicleMax << '\n'
+             << "Method: " << methods[constants::learningType] << '\n'
+             << "State: " << (isPaused ? "PAUSED" : "PLAYING") << '\n'
+             << "===================================" << std::endl;
+}
+
 void Network::processMetrics(double currentTime,
                              double& lastTime,
                              int& lastCompletedVehicles,
@@ -244,8 +274,7 @@ void Network::renderControlPanel(double smoothedFlowPerMin,
    }
 
    if (currentTime - lastPrintTime >= 5.0) {
-      std::cout << "Time: " << elapsedSimulationMinutes << "m | Flow/min: " << smoothedFlowPerMin
-                << " | AvgSpeed: " << smoothedAvgSpeed << std::endl;
+      printTerminalOutput(smoothedFlowPerMin, smoothedAvgSpeed, lastFPS, elapsedSimulationMinutes);
       lastPrintTime = currentTime;
    }
 
