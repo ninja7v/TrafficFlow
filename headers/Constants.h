@@ -74,6 +74,9 @@ namespace constants {
    constexpr int minGap{ static_cast<int>(10.0 * zoom) }; // pi*minGap^2*nbIntersections<sizeX*sizeY
    /** Intersection diameter in pixel. It must be a positive number. */
    constexpr double diameterIntersection{ 20.0 * zoom };
+   /** Probability for a road to be one-way (the others are two-way). It must be in [0, 1].
+    * Some one-way roads are made two-way if needed so that every intersection is reachable. */
+   extern double oneWayRoadRatio;
    /** Maximum number of connected input roads (for state standardization). */
    extern int maxConnectedInputRoads;
    /** Duration of a state in seconds. */
@@ -106,7 +109,7 @@ namespace constants {
    inline void updateBoostDependentConstants()
    {
       flow = static_cast<int>(10.0 * boost);
-      trafficLightPeriod = 0.8 / boost;
+      trafficLightPeriod = 2.0 / boost;
       speedMaxCar   = 0.3 * boost;
       speedMaxBike  = 0.4 * boost;
       speedMaxTruck = 0.2 * boost;

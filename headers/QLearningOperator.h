@@ -35,11 +35,13 @@ private:
 /** @defgroup hyperparameters */
 /**@{*/
     /** Learning Rate: How fast the network updates its weights */
-    static constexpr inline double alpha = 0.001;
+    static constexpr inline double alpha = 0.1;
     /** Discount Factor: Importance of future rewards (0 = short-sighted, 1 = long-sighted) */
     static constexpr inline double gamma = 0.95;
     /** Exploration Rate: Probability of choosing a random action */
-    static constexpr inline double epsilon = 0.1; // 10% exploration
+    double epsilon = 1.0;
+    static constexpr inline double epsilonMin = 0.05;
+    static constexpr inline double epsilonDecay = 0.995;
     /** Random number generator */
     std::mt19937 rng;
 /**@}*/

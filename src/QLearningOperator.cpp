@@ -1,6 +1,6 @@
 // Libraries
-#include <iostream> // To use std::cout
-#include <random>   // To use std::random_device and std::mt19937
+#include <algorithm> // To use std::max
+#include <random>    // To use std::random_device and std::mt19937
 // Headers
 #include "../headers/QLearningOperator.h"
 
@@ -61,4 +61,8 @@ void QLearningOperator::learn(const std::vector<int>& state, int action, double 
 
     // new Q-value
     qTable[state][action] = currentQ + alpha * (reward + gamma * maxNextQ - currentQ);
+
+    if (epsilon > epsilonMin) {
+        epsilon = std::max(epsilonMin, epsilon * epsilonDecay);
+    }
 }

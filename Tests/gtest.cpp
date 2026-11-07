@@ -4,11 +4,13 @@
 #include <list>           // for std::list
 #include <array>          // for std::array
 #include <vector>         // for std::vector
+#include <string>         // for std::string
 // Headers
 #include "../headers/Bike.h"
 #include "../headers/Car.h"
 #include "../headers/Truck.h"
 #include "../headers/Constants.h"
+#include "../headers/Graph.h"
 #include "../headers/Road.h"
 #include "../headers/Map.h"
 #include "../headers/Network.h"
@@ -70,6 +72,29 @@ TEST(RoadTest, VehicleMovement) {
     EXPECT_FALSE(car2->getStatus());
 }
 
+TEST(RoadTest, CapacityQueueAndDepartures) {
+    auto i1 = std::make_unique<Intersection>(1, std::vector<double>{0.0, 0.0});
+    auto i2 = std::make_unique<Intersection>(2, std::vector<double>{0.0, 10.0});
+    auto r = std::make_unique<Road>(1, i1.get(), i2.get());
+    auto car1 = std::make_shared<Car>(i1.get(), i2.get(), 1, i2.get(), std::list<Road*>{});
+    auto car2 = std::make_shared<Car>(i1.get(), i2.get(), 2, i2.get(), std::list<Road*>{});
+
+    EXPECT_TRUE(r->canEnter(*car1));
+    EXPECT_FALSE(r->isFull());
+    r->addVehicle(car1);
+    // car1 still sits on the road start: no room for another vehicle
+    EXPECT_FALSE(r->canEnter(*car2));
+    EXPECT_TRUE(r->isFull());
+    EXPECT_EQ(r->getQueueLength(), 1); // Stopped
+    // Once car1 moved away by more than the vehicles' spacing, car2 can enter
+    car1->setPosition({0.0, 3.0});
+    EXPECT_TRUE(r->canEnter(*car2));
+
+    EXPECT_EQ(r->getNumberOfDepartedVehicles(), 0);
+    r->removeVehicle();
+    EXPECT_EQ(r->getNumberOfDepartedVehicles(), 1);
+}
+
 // ------------------------- Map tests -------------------------
 TEST(MapTest, Connections) {
     auto i1 = std::make_unique<Intersection>(1, std::vector<double>{0.0, 0.0});
@@ -94,8 +119,185 @@ TEST(MapTest, Connections) {
     EXPECT_TRUE(nothing_track.empty());
 }
 
+// Restores the global simulation parameters modified by a test.
+struct ConstantsGuard {
+    ConstantsGuard()
+        : learningType(constants::learningType), boost(constants::boost),
+          flow(constants::flow), nbVehicleMax(constants::nbVehicleMax),
+          oneWayRoadRatio(constants::oneWayRoadRatio) {}
+    ~ConstantsGuard() {
+        constants::learningType = learningType;
+        constants::boost = boost;
+        constants::updateBoostDependentConstants();
+        constants::flow = flow;
+        constants::nbVehicleMax = nbVehicleMax;
+        constants::oneWayRoadRatio = oneWayRoadRatio;
+    }
+    LearningType learningType;
+    double boost;
+    int flow;
+    int nbVehicleMax;
+    double oneWayRoadRatio;
+};
+
+// ------------------------- Graph tests -------------------------
+TEST(GraphTest, StronglyConnected) {
+    EXPECT_TRUE(graph::isStronglyConnected(3, {{0, 1}, {1, 2}, {2, 0}}));
+    EXPECT_FALSE(graph::isStronglyConnected(3, {{0, 1}, {1, 2}}));
+    EXPECT_FALSE(graph::isStronglyConnected(3, {{0, 1}, {1, 0}})); // Node 2 isolated
+}
+
+TEST(GraphTest, OrientEdgesRatioExtremes) {
+    std::mt19937 rng(42);
+    const std::vector<graph::Edge> path = {{0, 1}, {1, 2}, {2, 3}};
+    // No one-way road: every edge is two-way.
+    EXPECT_EQ(graph::orientEdges(4, path, 0.0, rng).size(), 6u);
+    // Only one-way roads requested, but on a path every road must be two-way to connect.
+    const auto edges = graph::orientEdges(4, path, 1.0, rng);
+    EXPECT_EQ(edges.size(), 6u);
+    EXPECT_TRUE(graph::isStronglyConnected(4, edges));
+    // On a cycle, all one-way roads can stay one-way only if they all turn the same way.
+    const std::vector<graph::Edge> cycle = {{0, 1}, {1, 2}, {2, 3}, {0, 3}};
+    for (int seed = 0; seed < 50; ++seed) {
+        std::mt19937 r(seed);
+        EXPECT_TRUE(graph::isStronglyConnected(4, graph::orientEdges(4, cycle, 1.0, r)));
+    }
+}
+
+TEST(GraphTest, OrientEdgesKeepsOneWayRoadsAndConnectivity) {
+    // Triangulated grid: 4x4 nodes
+    std::vector<graph::Edge> mesh;
+    auto node = [](int x, int y) { return 4 * y + x; };
+    for (int y = 0; y < 4; ++y)
+        for (int x = 0; x < 4; ++x) {
+            if (x < 3) mesh.push_back({node(x, y), node(x + 1, y)});
+            if (y < 3) mesh.push_back({node(x, y), node(x, y + 1)});
+            if (x < 3 && y < 3) mesh.push_back({node(x, y), node(x + 1, y + 1)});
+        }
+    size_t totalOneWay = 0;
+    for (int seed = 0; seed < 100; ++seed) {
+        std::mt19937 rng(seed);
+        const auto edges = graph::orientEdges(16, mesh, 0.5, rng);
+        ASSERT_TRUE(graph::isStronglyConnected(16, edges)) << "seed " << seed;
+        ASSERT_GE(edges.size(), mesh.size());
+        ASSERT_LE(edges.size(), 2 * mesh.size());
+        totalOneWay += 2 * mesh.size() - edges.size();
+    }
+    EXPECT_GT(totalOneWay, 0u); // One-way roads are kept when possible
+}
+
+TEST(MapTest, LiveCostStaysFiniteWhenRoadStartIsOccupied) {
+    auto i1 = std::make_unique<Intersection>(1, std::vector<double>{0.0, 0.0});
+    auto i2 = std::make_unique<Intersection>(2, std::vector<double>{0.0, 10.0});
+    auto r = std::make_unique<Road>(1, i1.get(), i2.get());
+
+    Map m;
+    m.setConnection(1, 2, r.get());
+    // A vehicle that just entered sits exactly on the road start (distance 0 to it).
+    r->addVehicle(std::make_shared<Car>(i1.get(), i2.get(), 1, i2.get(), std::list<Road*>{}));
+    m.updateConnection(r);
+
+    // The road must stay usable (a division by zero used to make it unreachable).
+    auto path = Map::track(i1.get(), i2.get());
+    ASSERT_EQ(path.size(), 1u);
+    EXPECT_EQ(path.front(), r.get());
+}
+
 // ------------------------- Network tests -------------------------
+// Headless: these run the whole simulation logic without any window / OpenGL context,
+// so they are meaningful on every CI platform.
+class NetworkHeadlessTest : public ::testing::TestWithParam<LearningType> {};
+
+TEST_P(NetworkHeadlessTest, SimulationRuns) {
+    ConstantsGuard guard;
+    constants::learningType = GetParam();
+    constants::boost = 1.0;
+    constants::updateBoostDependentConstants();
+    constants::nbVehicleMax = 70;
+
+    Network n;
+    EXPECT_EQ(n.getIntersectionCount(), constants::nbIntersections);
+    EXPECT_GT(n.getRoadCount(), 0);
+
+    const int steps = 60 * 60; // One simulated minute
+    for (int k = 0; k < steps; ++k) {
+        n.step();
+        ASSERT_LE(n.getVehicleCount(), constants::nbVehicleMax);
+    }
+    EXPECT_NEAR(n.getSimulationTime(), steps * Network::timeStep, 1e-6);
+    EXPECT_GT(n.getVehicleCount(), 0);
+    EXPECT_GT(n.getCompletedVehicles(), 0); // Some trips must be completed
+}
+
+class NetworkRoadsTest : public ::testing::TestWithParam<double> {};
+
+TEST_P(NetworkRoadsTest, PathExistsBetweenAnyTwoIntersections) {
+    ConstantsGuard guard;
+    constants::oneWayRoadRatio = GetParam();
+    for (int attempt = 0; attempt < 10; ++attempt) { // Several random networks
+        Network n;
+        for (int a = 0; a < n.getIntersectionCount(); ++a) {
+            for (int b = 0; b < n.getIntersectionCount(); ++b) {
+                if (a == b)
+                    continue;
+                const auto path = Map::track(n.getIntersection(a), n.getIntersection(b));
+                ASSERT_FALSE(path.empty()) << a << " -> " << b;
+                EXPECT_EQ(path.front()->getStart()->getID(), a);
+                EXPECT_EQ(path.back()->getEnd()->getID(), b);
+                for (auto it = path.begin(); std::next(it) != path.end(); ++it) {
+                    EXPECT_EQ((*it)->getEnd(), (*std::next(it))->getStart());
+                }
+            }
+        }
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(OneWayRatios, NetworkRoadsTest, ::testing::Values(0.0, 0.3, 1.0));
+
+// The heuristic used to keep the green for a vehicle blocked downstream, and the space check used
+// pixel sizes as grid units: the network locked up (no more trips) within a few minutes.
+TEST(NetworkHeadlessTest, NoGridlock) {
+    ConstantsGuard guard;
+    constants::learningType = LearningType::HEURISTIC;
+    constants::boost = 1.0;
+    constants::updateBoostDependentConstants();
+    for (unsigned int seed = 1; seed <= 3; ++seed) {
+        Network n(seed);
+        const int stepsPerMinute = static_cast<int>(60.0 / Network::timeStep);
+        for (int k = 0; k < 10 * stepsPerMinute; ++k)
+            n.step();
+        const int completed = n.getCompletedVehicles();
+        for (int k = 0; k < 2 * stepsPerMinute; ++k)
+            n.step();
+        EXPECT_GT(n.getCompletedVehicles() - completed, 100) << "seed " << seed;
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(AllOperators, NetworkHeadlessTest,
+                         ::testing::Values(LearningType::Q_LEARNING, LearningType::DQN,
+                                           LearningType::HEURISTIC));
+
+TEST(NetworkTest, TerminalOutput) {
+    Network n(1);
+    testing::internal::CaptureStdout();
+    n.printTerminalOutput(12.5, 3.0, 60, 1.0);
+    const std::string summary = testing::internal::GetCapturedStdout();
+    EXPECT_NE(summary.find("Flow/min: 12.5"), std::string::npos);
+    EXPECT_EQ(summary.find("Control Panel"), std::string::npos);
+
+    n.setTerminalOutput(true);
+    testing::internal::CaptureStdout();
+    n.printTerminalOutput(12.5, 3.0, 60, 1.0);
+    const std::string panel = testing::internal::GetCapturedStdout();
+    for (const char* field : {"Control Panel", "FPS: 60", "Flow: 12.5", "Boost:", "Method:", "State: PLAYING"}) {
+        EXPECT_NE(panel.find(field), std::string::npos) << field;
+    }
+}
+
+// These open a window: they exercise the rendering path when a display is available
+// and return immediately otherwise.
 TEST(NetworkTest, SimulationSteps_QLearning) {
+    ConstantsGuard guard;
     constants::learningType = LearningType::Q_LEARNING;
     constants::boost = 100.0;
     constants::updateBoostDependentConstants();
@@ -107,6 +309,7 @@ TEST(NetworkTest, SimulationSteps_QLearning) {
 }
 
 TEST(NetworkTest, SimulationSteps_DQN) {
+    ConstantsGuard guard;
     constants::learningType = LearningType::DQN;
     constants::boost = 100.0;
     constants::updateBoostDependentConstants();
@@ -118,6 +321,7 @@ TEST(NetworkTest, SimulationSteps_DQN) {
 }
 
 TEST(NetworkTest, SimulationSteps_Heuristic) {
+    ConstantsGuard guard;
     constants::learningType = LearningType::HEURISTIC;
     constants::boost = 100.0;
     constants::updateBoostDependentConstants();
@@ -129,6 +333,41 @@ TEST(NetworkTest, SimulationSteps_Heuristic) {
 }
 
 // ------------------------- Vehicle tests -------------------------
+TEST(VehicleTest, StopsAtRedLightThenCrossesOnGreen) {
+    ConstantsGuard guard;
+    constants::learningType = LearningType::HEURISTIC;
+    constants::boost = 100.0; // Very fast: one step is longer than the road
+    constants::updateBoostDependentConstants();
+
+    auto i0 = std::make_unique<Intersection>(0, std::vector<double>{10.0, 10.0});
+    auto i1 = std::make_unique<Intersection>(1, std::vector<double>{0.0, 0.0});
+    auto i2 = std::make_unique<Intersection>(2, std::vector<double>{0.0, 10.0});
+    auto other = std::make_unique<Road>(99, i0.get(), i2.get());
+    auto r = std::make_unique<Road>(1, i1.get(), i2.get());
+    i2->addInputRoad(other.get()); // Index 0: green at start
+    i2->addInputRoad(r.get());     // Index 1: red
+
+    auto car = std::make_shared<Car>(i1.get(), i2.get(), 1, i2.get(), std::list<Road*>{});
+    r->addVehicle(car);
+    ASSERT_TRUE(i2->isRed(r->getID()));
+
+    for (int k = 0; k < 500; ++k) {
+        r->moveVehicles();
+    }
+    EXPECT_FALSE(car->getStatus()) << "The vehicle ran the red light";
+    EXPECT_TRUE(r->containVehicle());
+    EXPECT_GT(car->distance(i2.get()), 0.0);
+
+    // The heuristic gives the green to the only road with a vehicle.
+    i2->update(constants::trafficLightPeriod * 2.0);
+    ASSERT_FALSE(i2->isRed(r->getID()));
+    for (int k = 0; k < 500 && !car->getStatus(); ++k) {
+        r->moveVehicles();
+    }
+    EXPECT_TRUE(car->getStatus());
+    EXPECT_FALSE(r->containVehicle());
+}
+
 TEST(VehicleTest, MovementLogic) {
     auto i1 = std::make_unique<Intersection>(1, std::vector<double>{0.0, 0.0});
     auto i2 = std::make_unique<Intersection>(2, std::vector<double>{0.0, 100.0});
@@ -230,7 +469,7 @@ TEST(IntersectionTest, Basic) {
     
     // Test that it doesn't crash during update
     for (int k=0; k<10; ++k) {
-        i3->update();
+        i3->update(k * constants::trafficLightPeriod);
     }
     SUCCEED();
 }
@@ -267,6 +506,42 @@ TEST(IntersectionOperatorTest, Basic) {
     const int nextAction2 = op2->decide(nextState2, actions);
     EXPECT_TRUE(nextAction1 == 0 || nextAction1 == 1);
     EXPECT_TRUE(nextAction2 == 0 || nextAction2 == 1);
+}
+
+TEST(IntersectionOperatorTest, QLearningImprovesActionChoice) {
+    QLearningOperator op;
+    const std::vector<int> state = {0, 1, 0, 1};
+    const std::vector<int> actions = {0, 1};
+
+    for (int i = 0; i < 1000; ++i) {
+        op.learn(state, 0, -1.0, state, {});
+        op.learn(state, 1, 1.0, state, {});
+    }
+
+    int preferredActionCount = 0;
+    for (int i = 0; i < 200; ++i) {
+        preferredActionCount += op.decide(state, actions) == 1;
+    }
+    EXPECT_GT(preferredActionCount, 170);
+}
+
+TEST(IntersectionOperatorTest, DQNImprovesActionChoice) {
+    DeepRLOperator op;
+    const std::vector<int> state = {0, 1, 0, 1};
+    const std::vector<int> actions = {0, 1};
+
+    // Initialize network, then train this state as a terminal contextual-bandit transition.
+    op.decide(state, actions);
+    for (int i = 0; i < 600; ++i) {
+        op.learn(state, 0, -1.0, state, {});
+        op.learn(state, 1, 0.0, state, {});
+    }
+
+    int preferredActionCount = 0;
+    for (int i = 0; i < 200; ++i) {
+        preferredActionCount += op.decide(state, actions) == 1;
+    }
+    EXPECT_GT(preferredActionCount, 185);
 }
 
 TEST(NeuralNetworkTest, BasicTraining) {

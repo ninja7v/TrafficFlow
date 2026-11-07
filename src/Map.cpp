@@ -3,6 +3,7 @@
 #include <vector> // To use lists
 #include <memory> // To use smart pointers
 #include <limits> // To use infinity
+#include <algorithm> // To use max
 // Header files
 #include "../headers/Map.h"
 
@@ -15,6 +16,10 @@ std::vector<std::vector <double>> Map::cost = { constants::nbIntersections, std:
 std::vector<std::vector <double>> Map::live_cost = { constants::nbIntersections, std::vector<double>(constants::nbIntersections, INF_VAL) };
 
 Map::Map() {
+   connections = {};
+   cost.assign(constants::nbIntersections,
+               std::vector<double>(constants::nbIntersections, INF_VAL));
+   live_cost = cost;
 }
 
 std::list<Road*> Map::track(const Intersection* begin,
@@ -76,13 +81,19 @@ void Map::setConnection(const int a,
    if (r && (a >= 0) && (b >= 0) && (a < constants::nbIntersections) && (b < constants::nbIntersections)) {
       connections[a][b] = r;
       cost[a][b] = r->getLength();
+      live_cost[a][b] = cost[a][b]; // Usable by track() before the first live update
    }
 }
 
 void Map::updateConnection(const std::unique_ptr<Road>& r) {
    if (r) {
+      const int a = r->getStart()->getID();
+      const int b = r->getEnd()->getID();
+      // The closer the last vehicle is to the start, the fuller the road. The free distance is
+      // clamped so a vehicle that just entered does not make the road cost infinite (unreachable).
+      constexpr double minFreeDistance = 0.1;
       const double penalty = !r->containVehicle() ? 0.0 :
-         cost[r->getStart()->getID()][r->getEnd()->getID()] / r->getVehicles().back()->distance(r->getStart()) - 1.0;
-      live_cost[r->getStart()->getID()][r->getEnd()->getID()] = cost[r->getStart()->getID()][r->getEnd()->getID()] + penalty;
+         std::max(cost[a][b] / std::max(r->getVehicles().back()->distance(r->getStart()), minFreeDistance) - 1.0, 0.0);
+      live_cost[a][b] = cost[a][b] + penalty;
    }
 }

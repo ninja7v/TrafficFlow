@@ -10,8 +10,6 @@
                 ".",
                 "-B",
                 "build",
-                "-G",
-                "Unix Makefiles",
                 "-DCMAKE_BUILD_TYPE=Debug"
             ],
             "group": "build",
@@ -29,7 +27,10 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "problemMatcher": "$gcc",
+            "problemMatcher": [
+                "$gcc",
+                "$msCompile"
+            ],
             "dependsOn": "CMake Configure"
         }
     ]

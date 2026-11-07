@@ -45,6 +45,7 @@ public:
 
 private:
     NeuralNetwork policyNetwork;
+    NeuralNetwork targetNetwork;
     bool isInitialized = false;
 
     // Structure to store a single transition (experience)
@@ -57,18 +58,22 @@ private:
         double reward;
         /** Resulting state */
         std::vector<double> nextState;
-        /** Is the episode finished? (Not used here but standard in RL) */
-        bool done;
+        /** Actions valid in the resulting state */
+        std::vector<int> nextActions;
     };
 
-    /** Memory to store past experiences */
+    /** Memory to store past experiences (ring buffer once full) */
     std::vector<Experience> replayBuffer;
+    /** Slot overwritten by the next experience once the buffer is full */
+    size_t replayBufferNext = 0;
     /** Maximum number of experiences to keep */
     const size_t maxBufferSize = 10000;
     /** Number of experiences to train on at each step */
     const size_t batchSize = 32;
     /** Train the network every N steps */
     const int trainingFrequency = 1;
+    /** Copy policy weights to the stable bootstrap network every N transitions. */
+    const int targetUpdateFrequency = 250;
     int stepCount = 0;
 
     // Hyperparameters

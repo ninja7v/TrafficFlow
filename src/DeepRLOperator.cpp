@@ -1,5 +1,6 @@
 // Libraries
-#include <iostream>
+#include <algorithm>
+#include <utility>
 // Headers
 #include "../headers/DeepRLOperator.h"
 #include "../headers/Constants.h"
@@ -21,6 +22,7 @@ int DeepRLOperator::decide(const std::vector<int>& state,
         const int outputSize = constants::maxConnectedInputRoads;
         // Topology: Input Layer -> 64 Hidden -> 64 Hidden -> Output Layer
         policyNetwork = NeuralNetwork({inputSize, 64, 64, outputSize}, alpha);
+        targetNetwork = policyNetwork;
         isInitialized = true;
     }
 
@@ -65,10 +67,13 @@ void DeepRLOperator::learn(const std::vector<int>& state,
     // 1. Store experience in Replay Buffer
     // We store the transition (s, a, r, s') to learn from it later.
     // This breaks temporal correlations between consecutive samples.
-    if (replayBuffer.size() >= maxBufferSize) {
-        replayBuffer.erase(replayBuffer.begin());
+    Experience experience{s, action, reward, ns, availableActions};
+    if (replayBuffer.size() < maxBufferSize) {
+        replayBuffer.push_back(std::move(experience));
+    } else {
+        replayBuffer[replayBufferNext] = std::move(experience);
+        replayBufferNext = (replayBufferNext + 1) % maxBufferSize;
     }
-    replayBuffer.push_back({s, action, reward, ns, false});
 
     stepCount++;
     if (stepCount % trainingFrequency != 0) return;
@@ -81,12 +86,12 @@ void DeepRLOperator::learn(const std::vector<int>& state,
         const auto& exp = replayBuffer[dist(rng)];
 
         std::vector<double> targetQ = policyNetwork.predict(exp.state);
-        std::vector<double> nextQ = policyNetwork.predict(exp.nextState);
+        std::vector<double> nextQ = targetNetwork.predict(exp.nextState);
 
         double maxNextQ = -1e9;
         bool foundNext = false;
         
-        for (int nextAction : availableActions) {
+        for (int nextAction : exp.nextActions) {
              if (nextAction >= 0 && nextAction < static_cast<int>(nextQ.size())) {
                  if (nextQ[nextAction] > maxNextQ) {
                      maxNextQ = nextQ[nextAction];
@@ -109,6 +114,10 @@ void DeepRLOperator::learn(const std::vector<int>& state,
     // 3. Decay Epsilon
     // Reduce exploration rate over time to favor exploitation as the agent learns.
     if (epsilon > epsilonMin) {
-        epsilon *= epsilonDecay;
+        epsilon = std::max(epsilonMin, epsilon * epsilonDecay);
+    }
+
+    if (stepCount % targetUpdateFrequency == 0) {
+        targetNetwork = policyNetwork;
     }
 }

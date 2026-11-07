@@ -4,12 +4,13 @@ This project uses CMake for cross-platform build configuration.
 
 ## Prerequisites
 
-- **CMake** (4.2 or higher)
-- **C++ Compiler** supporting C++20 (GCC, Clang, MSVC)
-- **Dependencies**:
-    - **Windows**: Dependencies are included in the `Dependencies` folder.
-    - **Linux**: You need to install `libglfw3-dev`, `freeglut3-dev`, `libgl1-mesa-dev`, `libglu1-mesa-dev`, `xorg-dev`.
-    - **macOS**: `glfw` and `freeglut` (via Homebrew).
+- **CMake** (3.16 or higher)
+- **C++ Compiler** supporting C++20 (GCC, Clang, MSVC, MinGW-w64)
+- **Dependencies** (OpenGL + GLFW; GoogleTest is downloaded automatically):
+    - **Windows (MSVC)**: GLFW is included in the `Dependencies` folder.
+    - **Windows (MinGW / Clang)**: GLFW is downloaded and built automatically (or uses an installed one).
+    - **Linux**: `sudo apt install libglfw3-dev libgl1-mesa-dev`
+    - **macOS**: `brew install glfw` (configure with `-DCMAKE_PREFIX_PATH=$(brew --prefix)` if not found).
 
 ## Building
 
@@ -21,6 +22,11 @@ This project uses CMake for cross-platform build configuration.
 2. Compile the project:
    ```bash
    cmake --build build
+   ```
+
+3. Run the tests:
+   ```bash
+   ctest --test-dir build --output-on-failure -C Debug
    ```
 
 ## Running

@@ -5,6 +5,7 @@ namespace constants {
     double boost{ 1.0 };
     int flow{ 10 };
     int nbVehicleMax{ 70 };
+    double oneWayRoadRatio{ 0.3 };
     int maxConnectedInputRoads{ 8 };
     double trafficLightPeriod{ 2.0 / boost };
     int stateSize{ 1 + 3 * maxConnectedInputRoads };

@@ -1,31 +1,68 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug TrafficFlow",
+            "name": "Debug TrafficFlow (Linux)",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/TrafficFlow",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "externalConsole": false,
+            "externalConsole": true,
             "preLaunchTask": "CMake Build"
         },
         {
-            "name": "Debug Unit Tests",
+            "name": "Debug Unit Tests (Linux)",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/unit_tests",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "externalConsole": false,
+            "externalConsole": true,
+            "preLaunchTask": "CMake Build"
+        },
+        {
+            "name": "Debug TrafficFlow (Windows)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/TrafficFlow.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": true,
+            "preLaunchTask": "CMake Build"
+        },
+        {
+            "name": "Debug Unit Tests (Windows)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/unit_tests.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": true,
             "preLaunchTask": "CMake Build"
         }
     ]
