@@ -21,9 +21,28 @@ public:
    /** @brief Default constructor.
     * @returns Network */
    Network();
-   /** @brief Network display.
+   /** @brief Network display (opens a window and runs the simulation in real time).
     * @param maxFrames Optional parameter restricting total frames to process for the tests (0 = infinite). */
    void displayNetwork(int maxFrames = 0);
+   /** @brief Advance the simulation by one fixed time step. Does not need a window / OpenGL context. */
+   void step();
+   /** @brief Getter.
+    * @returns Elapsed simulation time in seconds */
+   double getSimulationTime() const;
+   /** @brief Getter.
+    * @returns Number of vehicles that reached their destination */
+   int getCompletedVehicles() const;
+   /** @brief Getter.
+    * @returns Number of vehicles currently in the network */
+   int getVehicleCount() const;
+   /** @brief Getter.
+    * @returns Number of roads */
+   int getRoadCount() const;
+   /** @brief Getter.
+    * @returns Number of intersections */
+   int getIntersectionCount() const;
+   /** Duration of one simulation step in seconds (the simulation runs at a fixed rate, independent of the FPS). */
+   static constexpr double timeStep{ 1.0 / 60.0 };
 
 protected:
 
@@ -34,8 +53,8 @@ private:
    void processMetrics(double currentTime, double& lastTime, int& lastCompletedVehicles, double& smoothedFlowPerMin, bool& isFirstFlowMeas, int& nbFrames, int& lastFPS);
    /** @brief Render the control panel. */
    void renderControlPanel(double smoothedFlowPerMin, double& smoothedAvgSpeed, int lastFPS, double& lastPrintTime, double elapsedSimulationMinutes, double currentTime);
-   /** @brief Process one step of the simulation (vehicle movements, RL/Heuristic updates). */
-   void processSimulationStep();
+   /** @brief Draw roads, vehicles, intersections and traffic lights. */
+   void render() const;
    /** Operators */
    std::shared_ptr<IntersectionOperator> qLearningOp;
    std::shared_ptr<IntersectionOperator> deepRLOp;
@@ -57,6 +76,8 @@ private:
    void updateVehiclesPosition();
    /** Number of completed trips. */
    int completedVehicles = 0;
-   /** Start time of the simulation. */
-   clock_t simulationStartTime;
+   /** Identifier given to the next spawned vehicle. */
+   int nextVehicleId = 0;
+   /** Elapsed simulation time in seconds. */
+   double simulationTime = 0.0;
 };

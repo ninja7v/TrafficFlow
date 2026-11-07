@@ -3,11 +3,13 @@
 #include <GLFW/glfw3.h>                  // To display
 #include <algorithm>                     // To use max
 #include <backends/imgui_impl_glfw.h>    // Platform backend: handles GLFW inputs and window events
-#include <backends/imgui_impl_opengl3.h> // Renderer backend: draws ImGui using OpenGL3
-#include <cstdlib>                       // To use std::getenv
-#include <ctime>                         // To use clock()
+#include <backends/imgui_impl_opengl2.h> // Renderer backend: draws ImGui with fixed-function OpenGL, like the simulator
+#include <cmath>                         // To use sqrt and pow
+#include <cstdlib>                       // To use std::getenv, rand
+#include <ctime>                         // To use time()
 #include <delaunator.hpp>                // To compute the Delaunay triangulation
 #include <imgui.h>                       // Core ImGui functionality (panel)
+#include <iostream>                      // To use std::cout
 #include <memory>                        // To use smart pointers
 #include <stb/stb_image.h>               // To use stbi_load()
 #include <unordered_map>                 // To use unordered_map
@@ -64,7 +66,7 @@ Network::Network() {
       }
       return true;
    };
-   std::unordered_map<const std::vector<double>, Intersection*, VectorHash, VectorEqual> card;
+   std::unordered_map<std::vector<double>, Intersection*, VectorHash, VectorEqual> card;
    std::vector<double> positions; // x0, y0, x1, y1, ...
    for (int k = 0; k < constants::nbIntersections; k++) {
       std::vector<double> position(2);
@@ -140,6 +142,7 @@ GLFWwindow* Network::initWindowAndImGui() {
    }
    // Make the window's context current
    glfwMakeContextCurrent(window);
+   glfwSwapInterval(1); // V-Sync: no need to render faster than the screen refresh rate
    glfwSetFramebufferSizeCallback(window, [](GLFWwindow*, int width, int height) {
       glViewport(0, 0, width, height);
    });
@@ -165,8 +168,14 @@ GLFWwindow* Network::initWindowAndImGui() {
    ImGuiIO& io = ImGui::GetIO();
    (void)io;
    ImGui::StyleColorsDark();
-   ImGui_ImplGlfw_InitForOpenGL(window, true);
-   ImGui_ImplOpenGL3_Init();
+   if (!ImGui_ImplGlfw_InitForOpenGL(window, true) || !ImGui_ImplOpenGL2_Init()) {
+      std::cerr << "Failed to initialize the ImGui backends" << std::endl;
+      ImGui_ImplGlfw_Shutdown();
+      ImGui::DestroyContext();
+      glfwDestroyWindow(window);
+      glfwTerminate();
+      return nullptr;
+   }
    return window;
 }
 
@@ -205,7 +214,7 @@ void Network::renderControlPanel(double smoothedFlowPerMin,
                                  double& lastPrintTime,
                                  double elapsedSimulationMinutes,
                                  double currentTime) {
-   ImGui_ImplOpenGL3_NewFrame();
+   ImGui_ImplOpenGL2_NewFrame();
    ImGui_ImplGlfw_NewFrame();
    ImGui::NewFrame();
 
@@ -221,9 +230,9 @@ void Network::renderControlPanel(double smoothedFlowPerMin,
       totalSpeed += v->getSpeed();
    }
 
-   double numVehicles = std::max(1.0, static_cast<double>(Vehicles.size()));
-   double avgSpeed = totalSpeed / numVehicles;
-   double instantAvgSpeedPxPerSec = (avgSpeed * ImGui::GetIO().Framerate) / constants::boost;
+   const double numVehicles = std::max(1.0, static_cast<double>(Vehicles.size()));
+   const double avgSpeed = totalSpeed / numVehicles; // Grid units per simulation step
+   const double instantAvgSpeedPxPerSec = avgSpeed / timeStep * constants::ratioX / constants::boost;
 
    if (Vehicles.empty()) {
       smoothedAvgSpeed = 0.0;
@@ -279,39 +288,38 @@ void Network::renderControlPanel(double smoothedFlowPerMin,
    ImGui::End();
 }
 
-void Network::processSimulationStep() {
-   // Roads
+void Network::step() {
+   // Live road costs used by the vehicles' GPS
    for (const auto& r : Roads) {
-      if (r) {
-         r->displayRoad();
+      if (r)
          map.updateConnection(r);
-      }
    }
-   // Display unpaused logic
-   if (!isPaused) {
-      addVehicle();
-      updateVehiclesPosition();
-      Vehicles.remove_if([this](std::shared_ptr<Vehicle> v) {
-         if (v->getStatus()) {
-            completedVehicles++;
-            return true; // Remove the vehicle
-         }
-         v->displayVehicle();
-         return false; // Keep the vehicle
-      });
-      // Intersections
-      for (const auto& i : Intersections) {
-         if (i)
-            i->update(); // Update RL/Heuristic logic
+   addVehicle();
+   updateVehiclesPosition();
+   Vehicles.remove_if([this](const std::shared_ptr<Vehicle>& v) {
+      if (v->getStatus()) {
+         completedVehicles++;
+         return true; // Remove the vehicle
       }
-   } else {
-      // If paused, we still need to display vehicles
-      for (const auto& v : Vehicles) {
-         if (v)
-            v->displayVehicle();
-      }
+      return false; // Keep the vehicle
+   });
+   simulationTime += timeStep;
+   // Intersections
+   for (const auto& i : Intersections) {
+      if (i)
+         i->update(simulationTime); // Update RL/Heuristic logic
    }
+}
 
+void Network::render() const {
+   for (const auto& r : Roads) {
+      if (r)
+         r->displayRoad();
+   }
+   for (const auto& v : Vehicles) {
+      if (v)
+         v->displayVehicle();
+   }
    for (const auto& i : Intersections) {
       if (i)
          i->displayIntersection();
@@ -323,15 +331,35 @@ void Network::processSimulationStep() {
    }
 }
 
+double Network::getSimulationTime() const {
+   return simulationTime;
+}
+
+int Network::getCompletedVehicles() const {
+   return completedVehicles;
+}
+
+int Network::getVehicleCount() const {
+   return static_cast<int>(Vehicles.size());
+}
+
+int Network::getRoadCount() const {
+   return static_cast<int>(Roads.size());
+}
+
+int Network::getIntersectionCount() const {
+   return static_cast<int>(Intersections.size());
+}
+
 void Network::displayNetwork(int maxFrames /*Used by tests*/) {
    GLFWwindow* window = initWindowAndImGui();
    if (!window) {
       return;
    }
-   // Initialize time
-   global::t0 = clock();
    double lastTime = glfwGetTime();
    double lastPrintTime = lastTime;
+   double previousFrameTime = lastTime;
+   double accumulator = 0.0;
    int lastCompletedVehicles = 0;
    double smoothedFlowPerMin = 0.0;
    double smoothedAvgSpeed = 0.0;
@@ -348,28 +376,43 @@ void Network::displayNetwork(int maxFrames /*Used by tests*/) {
 
       processMetrics(currentTime, lastTime, lastCompletedVehicles, smoothedFlowPerMin,
                      isFirstFlowMeas, nbFrames, lastFPS);
-      const double elapsedSimulationMinutes =
-          static_cast<double>(clock() - global::t0) / static_cast<double>(CLOCKS_PER_SEC) / 60.0;
 
       renderControlPanel(smoothedFlowPerMin, smoothedAvgSpeed, lastFPS, lastPrintTime,
-                         elapsedSimulationMinutes, currentTime);
+                         simulationTime / 60.0, currentTime);
+
+      // Fixed time step: the simulation advances at the same pace whatever the frame rate.
+      // The frame time is capped so a slow frame (window dragged, breakpoint...) does not
+      // trigger a burst of catch-up steps.
+      accumulator += std::min(currentTime - previousFrameTime, 0.25);
+      previousFrameTime = currentTime;
+      if (isPaused) {
+         accumulator = 0.0;
+      }
+      // In test mode (maxFrames > 0) run at least one step per frame so the logic is exercised.
+      if (maxFrames > 0 && !isPaused) {
+         accumulator = std::max(accumulator, timeStep);
+      }
+      while (accumulator >= timeStep) {
+         step();
+         accumulator -= timeStep;
+      }
 
       // Clear the screen
       glClear(GL_COLOR_BUFFER_BIT);
-
-      processSimulationStep();
+      render();
       // Rendering panel
       ImGui::Render();
-      ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+      ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
       // Swap front and back buffers
       glfwSwapBuffers(window);
       // Poll for and process events
       glfwPollEvents();
    }
    // Cleanup
-   ImGui_ImplOpenGL3_Shutdown();
+   ImGui_ImplOpenGL2_Shutdown();
    ImGui_ImplGlfw_Shutdown();
    ImGui::DestroyContext();
+   glfwDestroyWindow(window);
    glfwTerminate();
 }
 
@@ -395,21 +438,22 @@ void Network::addVehicle() {
             std::shared_ptr<Vehicle> v;
             switch (vehicleType) {
             case 0: {
-               v = std::make_shared<Car>(r->getStart(), r->getEnd(), r->getID(), destination,
+               v = std::make_shared<Car>(r->getStart(), r->getEnd(), nextVehicleId, destination,
                                          map.track(r->getEnd(), destination));
                break;
             }
             case 1: {
-               v = std::make_shared<Bike>(r->getStart(), r->getEnd(), r->getID(), destination,
+               v = std::make_shared<Bike>(r->getStart(), r->getEnd(), nextVehicleId, destination,
                                           map.track(r->getEnd(), destination));
                break;
             }
             case 2: {
-               v = std::make_shared<Truck>(r->getStart(), r->getEnd(), r->getID(), destination,
+               v = std::make_shared<Truck>(r->getStart(), r->getEnd(), nextVehicleId, destination,
                                            map.track(r->getEnd(), destination));
                break;
             }
             }
+            nextVehicleId++;
             Vehicles.push_back(v);
             r->addVehicle(v);
             global::numberOfVehicles += 1;

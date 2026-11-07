@@ -1,5 +1,6 @@
 // Libraries
 #include <algorithm>
+#include <utility>
 // Headers
 #include "../headers/DeepRLOperator.h"
 #include "../headers/Constants.h"
@@ -66,10 +67,13 @@ void DeepRLOperator::learn(const std::vector<int>& state,
     // 1. Store experience in Replay Buffer
     // We store the transition (s, a, r, s') to learn from it later.
     // This breaks temporal correlations between consecutive samples.
-    if (replayBuffer.size() >= maxBufferSize) {
-        replayBuffer.erase(replayBuffer.begin());
+    Experience experience{s, action, reward, ns, availableActions};
+    if (replayBuffer.size() < maxBufferSize) {
+        replayBuffer.push_back(std::move(experience));
+    } else {
+        replayBuffer[replayBufferNext] = std::move(experience);
+        replayBufferNext = (replayBufferNext + 1) % maxBufferSize;
     }
-    replayBuffer.push_back({s, action, reward, ns, availableActions});
 
     stepCount++;
     if (stepCount % trainingFrequency != 0) return;

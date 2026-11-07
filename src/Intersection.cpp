@@ -1,7 +1,6 @@
 // Libraries
 #include <GLFW/glfw3.h> // To display
 #include <algorithm>    // To use clamp
-#include <chrono>       // To use steady_clock
 #include <memory>       // To use smart pointers
 #include <numeric>      // To use accumulate
 // Headers
@@ -20,7 +19,7 @@ Intersection::Intersection(const int n,
       op(op),
       currentGreenRoadIndex(0),
       lastAction(0),
-      lastSwitchTime(std::chrono::steady_clock::now()) {
+      lastSwitchTime(0.0) {
 }
 
 bool Intersection::isRed(const int id) const {
@@ -28,7 +27,7 @@ bool Intersection::isRed(const int id) const {
 }
 
 void Intersection::displayIntersection() const {
-   glPointSize(constants::diameterIntersection);
+   glPointSize(static_cast<float>(constants::diameterIntersection));
    glColor3d(0.0, 0.0, 0.0); // Black
    glEnable(GL_POINT_SMOOTH);
    glBegin(GL_POINTS);
@@ -48,7 +47,7 @@ int Intersection::getID() const {
    return idIntersection;
 }
 
-const std::vector<double> Intersection::getPosition() const {
+const std::vector<double>& Intersection::getPosition() const {
    return position;
 }
 
@@ -56,14 +55,13 @@ int Intersection::getNumberInputRoads() const {
    return static_cast<int>(inputRoads.size());
 }
 
-bool Intersection::operator==(const Intersection i) {
+bool Intersection::operator==(const Intersection& i) const {
    return idIntersection == i.idIntersection;
 }
 
 void Intersection::setOperator(std::shared_ptr<IntersectionOperator> newOp) {
    op = newOp;
    lastState.clear();
-   lastSwitchTime = std::chrono::steady_clock::now();
 }
 
 int Intersection::computeHeuristicAction() const {
@@ -163,44 +161,33 @@ void Intersection::performLearning(const std::vector<int>& state, double reward,
    }
 }
 
-void Intersection::update() {
-   if (inputRoads.empty())
+void Intersection::update(const double simulationTime) {
+   if (inputRoads.empty() || simulationTime - lastSwitchTime < constants::trafficLightPeriod)
       return;
+   lastSwitchTime = simulationTime;
 
-   if (constants::learningType == LearningType::HEURISTIC) {
-      const auto now = std::chrono::steady_clock::now();
-      const double timeSinceSwitch =
-          std::chrono::duration<double>(now - lastSwitchTime).count();
-      if (timeSinceSwitch > constants::trafficLightPeriod) {
-         int action = computeHeuristicAction();
-         if (action != -1) {
-            currentGreenRoadIndex = action;
-            lastAction = action;
-            lastSwitchTime = now;
-         }
+   if (constants::learningType == LearningType::HEURISTIC || !op) {
+      const int action = computeHeuristicAction();
+      if (action != -1) {
+         currentGreenRoadIndex = action;
+         lastAction = action;
       }
       return;
    }
 
-   const auto now = std::chrono::steady_clock::now();
-   const double timeSinceSwitch =
-       std::chrono::duration<double>(now - lastSwitchTime).count();
-   if (timeSinceSwitch > constants::trafficLightPeriod) {
-      const std::vector<int> state = constructState();
-      std::vector<int> availableActions;
-      for (size_t i = 0; i < inputRoads.size(); ++i) {
-         availableActions.push_back(static_cast<int>(i));
-      }
+   const std::vector<int> state = constructState();
+   std::vector<int> availableActions;
+   for (size_t i = 0; i < inputRoads.size(); ++i) {
+      availableActions.push_back(static_cast<int>(i));
+   }
 
-      // One learning update represents one complete action interval.
-      performLearning(state, calculateReward(), availableActions);
-      const int action = op->decide(state, availableActions);
+   // One learning update represents one complete action interval.
+   performLearning(state, calculateReward(), availableActions);
+   const int action = op->decide(state, availableActions);
 
-      if (action != -1) {
-         currentGreenRoadIndex = action;
-         lastAction = action;
-         lastState = state;
-         lastSwitchTime = now;
-      }
+   if (action >= 0 && action < static_cast<int>(inputRoads.size())) {
+      currentGreenRoadIndex = action;
+      lastAction = action;
+      lastState = state;
    }
 }

@@ -62,8 +62,10 @@ private:
         std::vector<int> nextActions;
     };
 
-    /** Memory to store past experiences */
+    /** Memory to store past experiences (ring buffer once full) */
     std::vector<Experience> replayBuffer;
+    /** Slot overwritten by the next experience once the buffer is full */
+    size_t replayBufferNext = 0;
     /** Maximum number of experiences to keep */
     const size_t maxBufferSize = 10000;
     /** Number of experiences to train on at each step */

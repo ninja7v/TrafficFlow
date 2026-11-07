@@ -1,221 +1,134 @@
-cmake_minimum_required(VERSION 3.13)
-project(TrafficFlow)
+cmake_minimum_required(VERSION 3.16)
+project(TrafficFlow LANGUAGES C CXX)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Force dynamic runtime for MSVC
+option(ENABLE_COVERAGE "Enable code coverage (GCC/Clang only)" OFF)
+
+# Use the dynamic MSVC runtime everywhere (must match GoogleTest and the prebuilt GLFW).
 if(MSVC)
-    foreach(flag_var
-            CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
-            CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO
-            CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
-            CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-        string(REPLACE "/MTd" "/MDd" ${flag_var} "${${flag_var}}")
-        string(REPLACE "/MT"  "/MD"  ${flag_var} "${${flag_var}}")
-    endforeach()
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endif()
 
-# Source files
-file(GLOB SOURCES "src/*.cpp")
-file(GLOB HEADERS "headers/*.h")
+# ----------------------------------------------------------------------------
+# Third-party dependencies: OpenGL + GLFW
+# ----------------------------------------------------------------------------
+set(OpenGL_GL_PREFERENCE GLVND)
+find_package(OpenGL REQUIRED)
 
-# Exclude Main.cpp from library sources
-set(LIB_SOURCES ${SOURCES})
-list(FILTER LIB_SOURCES EXCLUDE REGEX "Main.cpp$")
+if(WIN32 AND MSVC AND EXISTS "${CMAKE_SOURCE_DIR}/Dependencies/GLFW/lib-vc2022/glfw3.lib")
+    # Prebuilt static GLFW for MSVC (x64) shipped in the repository.
+    add_library(glfw STATIC IMPORTED)
+    set_target_properties(glfw PROPERTIES
+        IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/Dependencies/GLFW/lib-vc2022/glfw3.lib"
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/Dependencies/GLFW/include"
+        INTERFACE_LINK_LIBRARIES "user32;gdi32;shell32")
+elseif(APPLE)
+    find_package(glfw3 3.3 REQUIRED) # brew install glfw
+elseif(UNIX)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(GLFW3 REQUIRED IMPORTED_TARGET glfw3) # apt install libglfw3-dev
+    add_library(glfw INTERFACE IMPORTED)
+    set_target_properties(glfw PROPERTIES INTERFACE_LINK_LIBRARIES PkgConfig::GLFW3)
+else()
+    # Windows with MinGW / Clang: the prebuilt glfw3.lib is MSVC-only, so use an
+    # installed GLFW if any, otherwise build it from source.
+    find_package(glfw3 3.3 CONFIG QUIET)
+    if(NOT TARGET glfw)
+        include(FetchContent)
+        FetchContent_Declare(
+            glfw
+            URL https://github.com/glfw/glfw/releases/download/3.4/glfw-3.4.zip
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+        set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+        set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(glfw)
+    endif()
+endif()
 
-# ImGui Sources
-set(IMGUI_SOURCES
+# ----------------------------------------------------------------------------
+# Common compile settings
+# ----------------------------------------------------------------------------
+add_library(project_options INTERFACE)
+target_compile_definitions(project_options INTERFACE
+    $<$<PLATFORM_ID:Windows>:NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS>
+    $<$<PLATFORM_ID:Darwin>:GL_SILENCE_DEPRECATION>)
+
+add_library(project_warnings INTERFACE)
+if(MSVC)
+    target_compile_options(project_warnings INTERFACE /W4 /permissive- /utf-8)
+else()
+    target_compile_options(project_warnings INTERFACE -Wall -Wextra -Wpedantic)
+endif()
+
+if(ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(project_options INTERFACE -O0 -g --coverage)
+    target_link_options(project_options INTERFACE --coverage)
+endif()
+
+# ----------------------------------------------------------------------------
+# ImGui (third-party: no project warnings)
+# ----------------------------------------------------------------------------
+add_library(imgui STATIC
     Dependencies/imgui/imgui.cpp
     Dependencies/imgui/imgui_draw.cpp
     Dependencies/imgui/imgui_tables.cpp
     Dependencies/imgui/imgui_widgets.cpp
     Dependencies/imgui/backends/imgui_impl_glfw.cpp
-    Dependencies/imgui/backends/imgui_impl_opengl3.cpp
-)
+    # The simulator draws with the fixed-function pipeline, so use the matching
+    # OpenGL2 renderer: it works with any GL context (incl. Windows' GL 1.1 and
+    # macOS legacy contexts) and needs no function loader.
+    Dependencies/imgui/backends/imgui_impl_opengl2.cpp)
+target_include_directories(imgui PUBLIC Dependencies/imgui Dependencies/imgui/backends)
+target_link_libraries(imgui PUBLIC glfw OpenGL::GL PRIVATE project_options)
 
-# Create a static library from non-main sources
-add_library(TrafficLib STATIC ${LIB_SOURCES} ${HEADERS} ${IMGUI_SOURCES})
+# ----------------------------------------------------------------------------
+# Simulator library (everything except main)
+# ----------------------------------------------------------------------------
+file(GLOB LIB_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
+list(FILTER LIB_SOURCES EXCLUDE REGEX "Main\\.cpp$")
+file(GLOB HEADERS CONFIGURE_DEPENDS "headers/*.h")
 
-# Include directories
-target_include_directories(TrafficLib PRIVATE
-    headers
-    Dependencies/stb/include
-    Dependencies/delaunator/include
-    Dependencies/imgui
-    Dependencies/imgui/backends
-)
+add_library(TrafficLib STATIC ${LIB_SOURCES} ${HEADERS})
+target_include_directories(TrafficLib
+    PUBLIC headers
+    PRIVATE Dependencies/stb/include Dependencies/delaunator/include)
+target_link_libraries(TrafficLib
+    PUBLIC project_options imgui glfw OpenGL::GL
+    PRIVATE project_warnings)
 
-# Main executable
+# ----------------------------------------------------------------------------
+# Executable
+# ----------------------------------------------------------------------------
 add_executable(TrafficFlow src/Main.cpp)
-target_include_directories(TrafficFlow PRIVATE headers)
-target_link_libraries(TrafficFlow PRIVATE TrafficLib)
+target_link_libraries(TrafficFlow PRIVATE TrafficLib project_warnings)
 
+# Run from the source tree by default so Graphics/ is found.
+set_target_properties(TrafficFlow PROPERTIES
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+# ----------------------------------------------------------------------------
 # Tests
+# ----------------------------------------------------------------------------
 enable_testing()
-option(ENABLE_COVERAGE "Enable code coverage" OFF)
-
-if(ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    add_library(coverage_flags INTERFACE)
-    target_compile_options(coverage_flags INTERFACE
-        -O0
-        -g
-        --coverage
-    )
-    target_link_options(coverage_flags INTERFACE
-        --coverage
-    )
-endif()
 
 include(FetchContent)
 FetchContent_Declare(
     googletest
-    URL https://github.com/google/googletest/archive/refs/heads/main.zip
-)
-
+    URL https://github.com/google/googletest/releases/download/v1.17.0/googletest-1.17.0.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
 
-FetchContent_GetProperties(googletest)
-if(NOT googletest_POPULATED)
-    FetchContent_Populate(googletest)
-    add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
-endif()
-
-file(GLOB TEST_SOURCES "Tests/*.cpp")
-
+file(GLOB TEST_SOURCES CONFIGURE_DEPENDS "Tests/*.cpp")
 add_executable(unit_tests ${TEST_SOURCES})
+target_link_libraries(unit_tests PRIVATE TrafficLib project_warnings GTest::gtest_main)
 
-target_link_libraries(unit_tests
-    PRIVATE
-    TrafficLib  # Link the project library to tests
-    gtest
-    gtest_main
-)
-
-if(ENABLE_COVERAGE AND TARGET coverage_flags)
-    target_link_libraries(unit_tests PRIVATE coverage_flags)
-    target_link_libraries(TrafficLib PRIVATE coverage_flags)
-    target_link_libraries(TrafficFlow PRIVATE coverage_flags)
-endif()
-
-target_include_directories(unit_tests PRIVATE headers)
-
-add_test(NAME unit_tests COMMAND unit_tests)
-
-# Platform specific settings
-if(WIN32)
-    # Windows Dependencies (MSVC prebuilt)
-    # GLFW
-    set(GLFW_LIB_DIR "${CMAKE_SOURCE_DIR}/Dependencies/GLFW/lib-vc2022")
-    # FreeGLUT
-    set(GL_LIB_DIR "${CMAKE_SOURCE_DIR}/Dependencies/GL/lib")
-    target_link_directories(TrafficFlow PRIVATE ${GLFW_LIB_DIR} ${GL_LIB_DIR})
-    target_link_directories(TrafficLib PRIVATE ${GLFW_LIB_DIR} ${GL_LIB_DIR})  # Also for lib if needed
-    target_link_directories(unit_tests PRIVATE ${GLFW_LIB_DIR} ${GL_LIB_DIR})  # Also for tests if needed
-    
-    target_link_libraries(TrafficFlow PRIVATE
-        glfw3
-        freeglut
-        opengl32
-        glu32
-        user32
-        gdi32
-        shell32
-    )
-    target_link_libraries(TrafficLib PRIVATE
-        glfw3
-        freeglut
-        opengl32
-        glu32
-        user32
-        gdi32
-        shell32
-    )  # If your lib needs these; adjust as necessary
-    # Copy DLLs to output directory
-    add_custom_command(TARGET TrafficFlow POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/Dependencies/GL/lib/freeglut.dll"
-        $<TARGET_FILE_DIR:TrafficFlow>
-    )
-    
-    # Check if glfw3.dll exists and copy it if so (it might be static)
-    if(EXISTS "${GLFW_LIB_DIR}/glfw3.dll")
-        add_custom_command(TARGET TrafficFlow POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${GLFW_LIB_DIR}/glfw3.dll"
-            $<TARGET_FILE_DIR:TrafficFlow>
-        )
-    endif()
-
-    # Include directories
-    target_include_directories(TrafficLib PRIVATE
-        Dependencies/GLFW/include
-        Dependencies/GL/include
-    )
-
-    # Warning flags for MSVC
-    if(MSVC)
-        target_compile_options(TrafficLib PRIVATE /W4 /permissive-)
-        target_compile_options(TrafficFlow PRIVATE /W4 /permissive-)
-        target_compile_options(unit_tests PRIVATE /W4 /permissive-)
-    endif()
-
-elseif(UNIX AND NOT APPLE)
-    # Linux Dependencies
-    find_package(OpenGL REQUIRED)
-    find_package(GLUT REQUIRED)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(GLFW3 REQUIRED glfw3)
-
-    target_link_libraries(TrafficFlow PRIVATE
-        ${OPENGL_LIBRARIES}
-        ${GLUT_LIBRARIES}
-        ${GLFW3_LIBRARIES}
-        pthread
-        X11
-        Xrandr
-        Xi
-        dl
-    )
-    target_link_libraries(TrafficLib PRIVATE
-        ${OPENGL_LIBRARIES}
-        ${GLUT_LIBRARIES}
-        ${GLFW3_LIBRARIES}
-        pthread
-        X11
-        Xrandr
-        Xi
-        dl
-    )
-    
-    # Include directories
-    target_include_directories(TrafficFlow PRIVATE ${GLFW3_INCLUDE_DIRS})
-    target_include_directories(TrafficLib PRIVATE ${GLFW3_INCLUDE_DIRS})
-
-    # Warning flags for GCC/Clang
-    target_compile_options(TrafficLib PRIVATE -Wall -Wextra -Wpedantic)
-    target_compile_options(TrafficFlow PRIVATE -Wall -Wextra -Wpedantic)
-    target_compile_options(unit_tests PRIVATE -Wall -Wextra -Wpedantic)
-
-elseif(APPLE)
-    # macOS Dependencies (Basic setup, might need adjustment)
-    find_package(OpenGL REQUIRED)
-    find_package(GLUT REQUIRED)
-    find_package(glfw3 REQUIRED)
-    
-    target_link_libraries(TrafficFlow PRIVATE
-        ${OPENGL_LIBRARIES}
-        ${GLUT_LIBRARIES}
-        glfw
-    )
-    target_link_libraries(TrafficLib PRIVATE
-        ${OPENGL_LIBRARIES}
-        ${GLUT_LIBRARIES}
-        glfw
-    )
-
-    # Warning flags for Clang
-    target_compile_options(TrafficLib PRIVATE -Wall -Wextra -Wpedantic)
-    target_compile_options(TrafficFlow PRIVATE -Wall -Wextra -Wpedantic)
-    target_compile_options(unit_tests PRIVATE -Wall -Wextra -Wpedantic)
-
-endif()
+add_test(NAME unit_tests COMMAND unit_tests WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+set_tests_properties(unit_tests PROPERTIES TIMEOUT 600)

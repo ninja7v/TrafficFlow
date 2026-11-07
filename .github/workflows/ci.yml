@@ -4,7 +4,11 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
 
@@ -36,14 +40,43 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Cross-platform build & test. Independent from the lint job so a style
+  # warning never hides a platform-specific build failure.
   build_and_test:
-    name: Build & Test (${{ matrix.os }})
-    needs: lint
+    name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        include:
+          - name: Linux / GCC / Debug + coverage
+            os: ubuntu-latest
+            build_type: Debug
+            cc: gcc
+            cxx: g++
+            coverage: true
+          - name: Linux / Clang / Release
+            os: ubuntu-latest
+            build_type: Release
+            cc: clang
+            cxx: clang++
+          - name: Windows / MSVC / Debug
+            os: windows-latest
+            build_type: Debug
+          - name: Windows / MSVC / Release
+            os: windows-latest
+            build_type: Release
+          - name: Windows / MinGW-w64 GCC / Release
+            os: windows-latest
+            build_type: Release
+            mingw: true
+            shell: msys2 {0}
+          - name: macOS / AppleClang / Release
+            os: macos-latest
+            build_type: Release
+    defaults:
+      run:
+        shell: ${{ matrix.shell || 'bash' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,28 +84,56 @@ jobs:
       - name: Install Dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
-          sudo apt update
-          sudo apt install -y ninja-build libgl1-mesa-dev libglu1-mesa-dev freeglut3-dev libglfw3-dev libx11-dev libxrandr-dev libxi-dev gcovr
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libglfw3-dev libgl1-mesa-dev xvfb gcovr
+
+      - name: Install Dependencies (MinGW)
+        if: matrix.mingw
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+
+      - name: Install Dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install glfw
 
       - name: Configure CMake
         run: |
-          if [ "${{ runner.os }}" == "Linux" ]; then
-            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
-          else
-            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          fi
-        shell: bash
+          args=(-S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }})
+          case "${{ runner.os }}" in
+            Linux)
+              args+=(-G Ninja -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCMAKE_CXX_COMPILER=${{ matrix.cxx }})
+              if [ "${{ matrix.coverage }}" == "true" ]; then args+=(-DENABLE_COVERAGE=ON); fi
+              ;;
+            Windows)
+              if [ "${{ matrix.mingw }}" == "true" ]; then args+=(-G Ninja); fi
+              ;;
+            macOS)
+              args+=(-DCMAKE_PREFIX_PATH="$(brew --prefix)")
+              ;;
+          esac
+          cmake "${args[@]}"
 
       - name: Build
-        run: cmake --build build --config ${{ runner.os == 'Linux' && 'Debug' || 'Release' }}
+        run: cmake --build build --config ${{ matrix.build_type }} --parallel
+
+      # On Linux the tests run inside a virtual X server (Mesa software OpenGL),
+      # so the rendering path is exercised as well as the simulation logic.
+      - name: Run Tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a ctest --test-dir build --output-on-failure -C ${{ matrix.build_type }}
 
       - name: Run Tests
-        run: |
-          cd build
-          ctest --output-on-failure -C ${{ runner.os == 'Linux' && 'Debug' || 'Release' }}
+        if: runner.os != 'Linux'
+        run: ctest --test-dir build --output-on-failure -C ${{ matrix.build_type }}
 
       - name: Generate and Check Coverage (Linux)
-        if: runner.os == 'Linux'
+        if: matrix.coverage
         run: |
           gcovr -r .. . \
             --filter '^src/' \

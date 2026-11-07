@@ -29,8 +29,8 @@ public:
            const int id,
            Intersection* target,
            const std::list<Road*> track);
-   /** @brief Destructor. */
-   ~Vehicle();
+   /** @brief Destructor (virtual: vehicles are owned through base pointers). */
+   virtual ~Vehicle() = default;
    /** @brief Theoritical speed function.
     * @param dist Distance with the front obstacle
     * @return Speed */

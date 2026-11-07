@@ -5,7 +5,6 @@
 #pragma once
 // Libraries
 #include <array>  // To use arrays
-#include <chrono> // To use steady_clock
 #include <memory> // To use smart pointers
 #include <string> // To use strings
 #include <vector> // To use vectors
@@ -39,15 +38,16 @@ class Intersection {
    int getID() const;
    /** @brief Getter.
     * @returns Position on the grid */
-   const std::vector<double> getPosition() const;
+   const std::vector<double>& getPosition() const;
    /** @brief Getter.
     * @returns Number of input roads */
    int getNumberInputRoads() const;
    /** @brief Comparison operator.
     * @returns Equal? */
-   bool operator==(const Intersection i);
-   /** @brief Update the intersection lights using RL. */
-   void update();
+   bool operator==(const Intersection& i) const;
+   /** @brief Update the intersection lights (RL operator or heuristic).
+    * @param simulationTime Current simulation time in seconds. */
+   void update(double simulationTime);
    /** @brief Set a new operator for this intersection. */
    void setOperator(std::shared_ptr<IntersectionOperator> newOp);
    /** @brief Evaluate heuristic fallback. */
@@ -85,7 +85,7 @@ class Intersection {
    std::vector<int> lastState;
    /** Last action taken */
    int lastAction;
-   /** Time of the last traffic light switch */
-   std::chrono::steady_clock::time_point lastSwitchTime;
+   /** Simulation time (s) of the last traffic light decision */
+   double lastSwitchTime;
    /**@}*/
 };

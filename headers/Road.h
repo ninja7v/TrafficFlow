@@ -7,6 +7,7 @@
 #include <array>  // To use arrays
 #include <list>   // To use lists
 #include <memory> // To use smart pointers
+#include <tuple>  // To use tuples
 // Headers
 #include "Intersection.h"
 #include "Vehicle.h"
@@ -50,7 +51,7 @@ public:
    Intersection* getEnd() const;
 /** @brief Getter.
   * @return Get vehicles */
-   std::list<std::shared_ptr<Vehicle>> getVehicles() const;
+   const std::list<std::shared_ptr<Vehicle>>& getVehicles() const;
 /** @brief Getter.
   * @return Orientation of the Road */
    std::array<double, 2> getDirection() const;

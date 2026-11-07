@@ -66,6 +66,10 @@ void Road::moveVehicles() {
       {
          const bool atIntersection = v->distance(i2) < constants::distanceSecurity / 5.0;
          if (atIntersection) {
+            if (!v->nextRoad() && v->getDestination() != i2) {
+               // No itinerary but not at destination (e.g. no path found at spawn): try again from here.
+               v->setNewItinerary(Map::track(i2, v->getDestination()));
+            }
             if (!v->nextRoad()) {
                this->removeVehicle();
                v->setStatus(true);
@@ -80,7 +84,8 @@ void Road::moveVehicles() {
                   this->removeVehicle();
                }
                else {
-                  v->setNewItinerary(Map::track(this->getStart(), v->getDestination()));
+                  // Next road is full: look for another route from the intersection we are at.
+                  v->setNewItinerary(Map::track(i2, v->getDestination()));
                }
             }
          }
@@ -171,7 +176,7 @@ Intersection* Road::getEnd() const {
    return i2;
 }
 
-std::list<std::shared_ptr<Vehicle>> Road::getVehicles() const {
+const std::list<std::shared_ptr<Vehicle>>& Road::getVehicles() const {
    return Vehicles;
 }
 

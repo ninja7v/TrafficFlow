@@ -94,8 +94,75 @@ TEST(MapTest, Connections) {
     EXPECT_TRUE(nothing_track.empty());
 }
 
+// Restores the global simulation parameters modified by a test.
+struct ConstantsGuard {
+    ConstantsGuard()
+        : learningType(constants::learningType), boost(constants::boost),
+          flow(constants::flow), nbVehicleMax(constants::nbVehicleMax) {}
+    ~ConstantsGuard() {
+        constants::learningType = learningType;
+        constants::boost = boost;
+        constants::updateBoostDependentConstants();
+        constants::flow = flow;
+        constants::nbVehicleMax = nbVehicleMax;
+    }
+    LearningType learningType;
+    double boost;
+    int flow;
+    int nbVehicleMax;
+};
+
+TEST(MapTest, LiveCostStaysFiniteWhenRoadStartIsOccupied) {
+    auto i1 = std::make_unique<Intersection>(1, std::vector<double>{0.0, 0.0});
+    auto i2 = std::make_unique<Intersection>(2, std::vector<double>{0.0, 10.0});
+    auto r = std::make_unique<Road>(1, i1.get(), i2.get());
+
+    Map m;
+    m.setConnection(1, 2, r.get());
+    // A vehicle that just entered sits exactly on the road start (distance 0 to it).
+    r->addVehicle(std::make_shared<Car>(i1.get(), i2.get(), 1, i2.get(), std::list<Road*>{}));
+    m.updateConnection(r);
+
+    // The road must stay usable (a division by zero used to make it unreachable).
+    auto path = Map::track(i1.get(), i2.get());
+    ASSERT_EQ(path.size(), 1u);
+    EXPECT_EQ(path.front(), r.get());
+}
+
 // ------------------------- Network tests -------------------------
+// Headless: these run the whole simulation logic without any window / OpenGL context,
+// so they are meaningful on every CI platform.
+class NetworkHeadlessTest : public ::testing::TestWithParam<LearningType> {};
+
+TEST_P(NetworkHeadlessTest, SimulationRuns) {
+    ConstantsGuard guard;
+    constants::learningType = GetParam();
+    constants::boost = 1.0;
+    constants::updateBoostDependentConstants();
+    constants::nbVehicleMax = 70;
+
+    Network n;
+    EXPECT_EQ(n.getIntersectionCount(), constants::nbIntersections);
+    EXPECT_GT(n.getRoadCount(), 0);
+
+    const int steps = 60 * 60; // One simulated minute
+    for (int k = 0; k < steps; ++k) {
+        n.step();
+        ASSERT_LE(n.getVehicleCount(), constants::nbVehicleMax);
+    }
+    EXPECT_NEAR(n.getSimulationTime(), steps * Network::timeStep, 1e-6);
+    EXPECT_GT(n.getVehicleCount(), 0);
+    EXPECT_GT(n.getCompletedVehicles(), 0); // Some trips must be completed
+}
+
+INSTANTIATE_TEST_SUITE_P(AllOperators, NetworkHeadlessTest,
+                         ::testing::Values(LearningType::Q_LEARNING, LearningType::DQN,
+                                           LearningType::HEURISTIC));
+
+// These open a window: they exercise the rendering path when a display is available
+// and return immediately otherwise.
 TEST(NetworkTest, SimulationSteps_QLearning) {
+    ConstantsGuard guard;
     constants::learningType = LearningType::Q_LEARNING;
     constants::boost = 100.0;
     constants::updateBoostDependentConstants();
@@ -107,6 +174,7 @@ TEST(NetworkTest, SimulationSteps_QLearning) {
 }
 
 TEST(NetworkTest, SimulationSteps_DQN) {
+    ConstantsGuard guard;
     constants::learningType = LearningType::DQN;
     constants::boost = 100.0;
     constants::updateBoostDependentConstants();
@@ -118,6 +186,7 @@ TEST(NetworkTest, SimulationSteps_DQN) {
 }
 
 TEST(NetworkTest, SimulationSteps_Heuristic) {
+    ConstantsGuard guard;
     constants::learningType = LearningType::HEURISTIC;
     constants::boost = 100.0;
     constants::updateBoostDependentConstants();
@@ -129,6 +198,41 @@ TEST(NetworkTest, SimulationSteps_Heuristic) {
 }
 
 // ------------------------- Vehicle tests -------------------------
+TEST(VehicleTest, StopsAtRedLightThenCrossesOnGreen) {
+    ConstantsGuard guard;
+    constants::learningType = LearningType::HEURISTIC;
+    constants::boost = 100.0; // Very fast: one step is longer than the road
+    constants::updateBoostDependentConstants();
+
+    auto i0 = std::make_unique<Intersection>(0, std::vector<double>{10.0, 10.0});
+    auto i1 = std::make_unique<Intersection>(1, std::vector<double>{0.0, 0.0});
+    auto i2 = std::make_unique<Intersection>(2, std::vector<double>{0.0, 10.0});
+    auto other = std::make_unique<Road>(99, i0.get(), i2.get());
+    auto r = std::make_unique<Road>(1, i1.get(), i2.get());
+    i2->addInputRoad(other.get()); // Index 0: green at start
+    i2->addInputRoad(r.get());     // Index 1: red
+
+    auto car = std::make_shared<Car>(i1.get(), i2.get(), 1, i2.get(), std::list<Road*>{});
+    r->addVehicle(car);
+    ASSERT_TRUE(i2->isRed(r->getID()));
+
+    for (int k = 0; k < 500; ++k) {
+        r->moveVehicles();
+    }
+    EXPECT_FALSE(car->getStatus()) << "The vehicle ran the red light";
+    EXPECT_TRUE(r->containVehicle());
+    EXPECT_GT(car->distance(i2.get()), 0.0);
+
+    // The heuristic gives the green to the only road with a vehicle.
+    i2->update(constants::trafficLightPeriod * 2.0);
+    ASSERT_FALSE(i2->isRed(r->getID()));
+    for (int k = 0; k < 500 && !car->getStatus(); ++k) {
+        r->moveVehicles();
+    }
+    EXPECT_TRUE(car->getStatus());
+    EXPECT_FALSE(r->containVehicle());
+}
+
 TEST(VehicleTest, MovementLogic) {
     auto i1 = std::make_unique<Intersection>(1, std::vector<double>{0.0, 0.0});
     auto i2 = std::make_unique<Intersection>(2, std::vector<double>{0.0, 100.0});
@@ -230,7 +334,7 @@ TEST(IntersectionTest, Basic) {
     
     // Test that it doesn't crash during update
     for (int k=0; k<10; ++k) {
-        i3->update();
+        i3->update(k * constants::trafficLightPeriod);
     }
     SUCCEED();
 }

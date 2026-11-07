@@ -2,9 +2,9 @@
  * @brief Global variable used by Network, Road and Intersection classes.
  */
 
+#pragma once
+
 namespace global {
-   /** Global time initialized at the very beginning of the simulation. */
-   extern clock_t t0;
    /** Global number of vehicle. */
    extern int numberOfVehicles;
 }

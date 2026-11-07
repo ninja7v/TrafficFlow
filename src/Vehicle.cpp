@@ -1,7 +1,7 @@
 // Libraries
 #include <array>     // To use arrays
 #include <list>      // To use lists
-#include <GL/glut.h> // To display
+#include <GLFW/glfw3.h> // To display
 #include <iostream>  // To debug
 #include <ctime>     // To use clock_t
 #include <vector>    // To use vectors
@@ -28,8 +28,6 @@ Vehicle::Vehicle(const Intersection* i1,
       position = i1->getPosition();
    setDirection(i2);
 }
-
-Vehicle::~Vehicle(){}
 
 double Vehicle::breakingSpeed(const double d) const {
    //// Breaking speed function choice:
@@ -78,7 +76,8 @@ void Vehicle::moveToIntersection(const Intersection* i,
       // Distance with the intersection ahead
       const double d = distance(i);
       // Update speed
-      if (i->isRed(idRoad))
+      const bool isRed = i->isRed(idRoad);
+      if (isRed)
          if (d < constants::distanceSecurity)
             speed = 0.0; // Pound!
          else
@@ -87,8 +86,16 @@ void Vehicle::moveToIntersection(const Intersection* i,
          speed = (speed < getSpeedMax()) ? speed + getAcceleration() : getSpeedMax();
       // Move
       const std::array<double, 2> move {direction[0] * speed, direction[1] * speed};
-      const double move_dist = std::sqrt(std::pow(move.at(0), 2) + std::pow(move.at(1), 2)) - (getHeight() + constants::diameterIntersection) / 12.0;
-      if (move_dist < d) {
+      const double stepLength = std::sqrt(std::pow(move.at(0), 2) + std::pow(move.at(1), 2));
+      const double move_dist = stepLength - (getHeight() + constants::diameterIntersection) / 12.0;
+      const double stopDistance = constants::distanceSecurity / 2.0;
+      if (isRed && stepLength > d - stopDistance) {
+         // Never run a red light: stop in front of the intersection instead of snapping into it.
+         const double allowed = std::max(d - stopDistance, 0.0);
+         position[0] += direction[0] * allowed;
+         position[1] += direction[1] * allowed;
+         speed = 0.0;
+      } else if (move_dist < d) {
          position[0] += move.at(0);
          position[1] += move.at(1);
          if (distance(i) > d) { // double check
@@ -129,7 +136,7 @@ void Vehicle::displayVehicle() {
    glVertex2d(rearLeft[0], rearLeft[1]);
    glEnd();
    // Lights
-   glPointSize(constants::diameterHeadlight);
+   glPointSize(static_cast<float>(constants::diameterHeadlight));
    glBegin(GL_POINTS);
    // Front lights
    glColor3d(1.0, 1.0, 0.0); // Yellow
@@ -146,7 +153,7 @@ void Vehicle::displayVehicle() {
    else
       glColor3d(0.5, 0.0, 0.0); // Dark Red
    if (is2Wheeler()) {
-      glVertex2d(center[0] - dh[0], center[1] - dw[1]);
+      glVertex2d(center[0] - dh[0], center[1] - dh[1]);
    }
    else {
       glVertex2d(rearLeft[0], rearLeft[1]);
