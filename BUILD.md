@@ -34,6 +34,18 @@ This project uses CMake for cross-platform build configuration.
 - **Windows**: Run `build\Debug\TrafficFlow.exe` (or `Release` if configured).
 - **Linux/macOS**: Run `./build/TrafficFlow`
 
+## Tools
+
+Both are headless and built with the project:
+
+- `./build/benchmark` compares the traffic light controllers on the same random networks and
+  the same traffic demand (options at the top of `tools/benchmark.cpp`).
+- `./build/train dqn` and `./build/train qlearning` train the learning controllers and write
+  their models in `models/` (options at the top of `tools/train.cpp`).
+
+Use a Release build (`cmake -S . -B build -DCMAKE_BUILD_TYPE=Release`) for these: training the
+DQN takes about 3 minutes in Release. Run them from the repository folder, where `models/` is.
+
 ## IDE Support
 
 You can open this folder directly in:

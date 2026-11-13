@@ -7,7 +7,6 @@
 #include <array>  // To use arrays
 #include <list>   // To use lists
 #include <memory> // To use smart pointers
-#include <tuple>  // To use tuples
 // Headers
 #include "Intersection.h"
 #include "Vehicle.h"
@@ -46,6 +45,9 @@ public:
 /** @brief Get number of vehicles queuing (almost stopped).
   * @returns Number of vehicles */
    int getQueueLength() const;
+/** @brief Get the time the first vehicle has been waiting on this road.
+  * @returns Time in seconds (0 if the road is empty) */
+   double getHeadWaitingTime() const;
 /** @brief Remove the first vehicle of the Road. */
    void removeVehicle();
 /** @brief Advance the vehicles for the next frame. */
@@ -72,14 +74,6 @@ public:
 /** @brief Getter.
   * @return Orientation of the Road */
    std::array<double, 2> getDirection() const;
-/** @brief Get number of vehicle arriving on the road since the beginning of the simulation.
-  * @returns Number of vehicle */
-   int getTotalNumberOfArringVehicles() const;
-/** @brief Get statistics for RL state.
-  * @param averageNewVehicles Average number of new vehicles since the beginning of the simulation to determine usage
-  * @returns tuple(occupancy, first_car_speed, usage) */
-   std::tuple<int, int, int> getVehicleStats(double averageNewVehicles) const;
-
 
 protected:
 
@@ -94,8 +88,6 @@ private:
    const double length;
 /** Vehicle on the Road */
    std::list<std::shared_ptr<Vehicle>> Vehicles;
-/** Number of vehicles that have arrived on this road since the start of the simulation */
-   int totalNumberOfArringVehicles;
 /** Number of vehicles that left this road since the start of the simulation */
    int departedVehicles = 0;
 /** Orientation of the Road */

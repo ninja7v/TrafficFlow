@@ -9,6 +9,23 @@
 
 namespace {
    const double INF_VAL = std::numeric_limits<double>::infinity();
+
+   /** Unvisited intersection with the smallest distance ('fallback' if they are all visited). */
+   int closestUnvisited(const double* distance, const int* visited, const int fallback) {
+      int closest = fallback;
+      double mindistance = INF_VAL;
+      for (int i = 0; i < constants::nbIntersections; i++)
+         if (distance[i] <= mindistance && !visited[i]) {
+            mindistance = distance[i];
+            closest = i;
+         }
+      return closest;
+   }
+
+   /** Intersection a vehicle arriving at 'begin' by 'arrivedBy' must not go straight back to. */
+   int uTurnNode(const Intersection* begin, const Road* arrivedBy) {
+      return (arrivedBy && arrivedBy->getEnd() == begin) ? arrivedBy->getStart()->getID() : -1;
+   }
 }
 
 decltype(Map::connections) Map::connections{};
@@ -23,10 +40,12 @@ Map::Map() {
 }
 
 std::list<Road*> Map::track(const Intersection* begin,
-                            const Intersection* end) {
+                            const Intersection* end,
+                            const Road* arrivedBy) {
    std::list<Road*> path;
    if (!begin || !end)
       return path;
+   const int uTurn = uTurnNode(begin, arrivedBy);
 
    double distance[constants::nbIntersections];
    int pred[constants::nbIntersections];
@@ -34,7 +53,7 @@ std::list<Road*> Map::track(const Intersection* begin,
 
    // Parameters initialization from start
    for (int i = 0; i < constants::nbIntersections; i++) {
-      distance[i] = live_cost[begin->getID()][i];
+      distance[i] = i == uTurn ? INF_VAL : live_cost[begin->getID()][i];
       pred[i] = begin->getID();
       visited[i] = 0;
    }
@@ -44,13 +63,9 @@ std::list<Road*> Map::track(const Intersection* begin,
    int nextnode = -1;
    double mindistance;
    for (int j = 1; j < constants::nbIntersections; j ++) {
-      mindistance = INF_VAL;
-      for (int i = 0; i < constants::nbIntersections; i++)
-         if (distance[i] <= mindistance && !visited[i]) {
-            mindistance = distance[i];
-            nextnode = i;
-         }
+      nextnode = closestUnvisited(distance, visited, nextnode);
       if (nextnode == -1) break;
+      mindistance = distance[nextnode];
       visited[nextnode] = 1;
       for (int i = 0; i < constants::nbIntersections; i++)
          if (!visited[i])
@@ -60,13 +75,10 @@ std::list<Road*> Map::track(const Intersection* begin,
             }
    }
    // Affect result
-   if (distance[end->getID()] != INF_VAL) { // Check if reachable
-      int i = end->getID();
-      while (i != begin->getID()) {
-         path.push_front(connections[pred[i]][i]);
-         i = pred[i];
-      }
-   }
+   if (distance[end->getID()] == INF_VAL) // Not reachable
+      return uTurn != -1 ? track(begin, end) /* Dead end: the U-turn is the only way */ : path;
+   for (int i = end->getID(); i != begin->getID(); i = pred[i])
+      path.push_front(connections[pred[i]][i]);
    return path;
 }
 

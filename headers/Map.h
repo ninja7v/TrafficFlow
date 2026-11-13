@@ -21,9 +21,13 @@ public:
     * Condition: the graph must be strongly connected to ensure the existence of a solution.
     * @param begin Start Intersection
     * @param end Arrival Intersection
+    * @param arrivedBy Road the vehicle is leaving (it ends at 'begin'), nullptr if none. The
+    * itinerary does not start with a U-turn on this road, unless there is no other way:
+    * vehicles sent back where they come from block each other on a congested two-way road.
     * @returns Road */
    static std::list<Road*> track(const Intersection* begin,
-                                 const Intersection* end);
+                                 const Intersection* end,
+                                 const Road* arrivedBy = nullptr);
    /** @brief Getter to obtain the road between 2 intersections.
     * @param a Start Intersection ID
     * @param b Arrival Intersection ID

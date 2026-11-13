@@ -1,123 +1,132 @@
 // Libraries
-#include <algorithm>
-#include <utility>
+#include <algorithm> // To use std::max
+#include <fstream>   // To use files
+#include <utility>   // To use std::move
 // Headers
 #include "../headers/DeepRLOperator.h"
-#include "../headers/Constants.h"
+#include "../headers/Features.h"
+#include "../headers/Random.h"
 
-
-DeepRLOperator::DeepRLOperator() {
-    std::random_device rd;
-    rng.seed(rd());
+namespace {
+   /** Description of each useful decision, in the order of features::usefulActions(). */
+   std::vector<std::vector<double>> describeDecisions(const Observation& observation,
+                                                      const std::vector<int>& actions) {
+      std::vector<std::vector<double>> decisions;
+      decisions.reserve(actions.size());
+      for (const int action : actions)
+         decisions.push_back(features::describe(observation, action));
+      return decisions;
+   }
 }
 
-int DeepRLOperator::decide(const std::vector<int>& state,
-                           const std::vector<int>& availableActions) {
-    if (availableActions.empty()) return -1;
-
-    // Lazy initialization of the neural network
-    // We wait for the first state to know the input size (state dimension)
-    if (!isInitialized) {
-        const int inputSize = static_cast<int>(state.size());
-        const int outputSize = constants::maxConnectedInputRoads;
-        // Topology: Input Layer -> 64 Hidden -> 64 Hidden -> Output Layer
-        policyNetwork = NeuralNetwork({inputSize, 64, 64, outputSize}, alpha);
-        targetNetwork = policyNetwork;
-        isInitialized = true;
-    }
-
-    // Exploration (epsilon-greedy strategy)
-    // With probability 'epsilon', we choose a random action to explore the environment.
-    std::uniform_real_distribution<double> dist(0.0, 1.0);
-    if (dist(rng) < epsilon) {
-        std::uniform_int_distribution<size_t> actionDist(0, availableActions.size() - 1);
-        return availableActions[actionDist(rng)];
-    }
-
-    // Exploitation 
-    // Otherwise, we ask the Neural Network to predict Q-values for all actions
-    // and we choose the action with the highest Q-value.
-    std::vector<double> inputState(state.begin(), state.end());
-    std::vector<double> qValues = policyNetwork.predict(inputState);
-
-    int bestAction = availableActions[0];
-    double maxQ = -1e9;
-
-    for (int action : availableActions) {
-        if (action >= 0 && action < static_cast<int>(qValues.size())) {
-            if (qValues[action] > maxQ) {
-                maxQ = qValues[action];
-                bestAction = action;
-            }
-        }
-    }
-    return bestAction;
+DeepRLOperator::DeepRLOperator(const unsigned int seed)
+    : policyNetwork({features::count, hiddenSize, hiddenSize, 1}, alpha, seed),
+      targetNetwork(policyNetwork),
+      rng(seed + 1) {
 }
 
-void DeepRLOperator::learn(const std::vector<int>& state,
+size_t DeepRLOperator::bestDecision(const NeuralNetwork& network,
+                                    const std::vector<std::vector<double>>& decisions) {
+   size_t best = 0;
+   double maxQ = network.predict(decisions[0])[0];
+   for (size_t k = 1; k < decisions.size(); ++k) {
+      const double q = network.predict(decisions[k])[0];
+      if (q > maxQ) {
+         maxQ = q;
+         best = k;
+      }
+   }
+   return best;
+}
+
+int DeepRLOperator::decide(const Observation& observation) {
+   const std::vector<int> actions = features::usefulActions(observation);
+   // Exploration (epsilon-greedy strategy)
+   // With probability 'epsilon', we choose a random action to explore the environment.
+   if (training && rnd::uniform(rng) < epsilon)
+      return actions[rnd::index(rng, static_cast<int>(actions.size()))];
+   // Exploitation
+   // Otherwise, we choose the action with the highest Q-value.
+   return actions[bestDecision(policyNetwork, describeDecisions(observation, actions))];
+}
+
+void DeepRLOperator::learn(const Observation& observation,
                            const int action,
                            const double reward,
-                           const std::vector<int>& nextState,
-                           const std::vector<int>& availableActions) {
-    if (!isInitialized) return;
+                           const Observation& nextObservation) {
+   if (!training)
+      return;
 
-    std::vector<double> s(state.begin(), state.end());
-    std::vector<double> ns(nextState.begin(), nextState.end());
-    
-    // 1. Store experience in Replay Buffer
-    // We store the transition (s, a, r, s') to learn from it later.
-    // This breaks temporal correlations between consecutive samples.
-    Experience experience{s, action, reward, ns, availableActions};
-    if (replayBuffer.size() < maxBufferSize) {
-        replayBuffer.push_back(std::move(experience));
-    } else {
-        replayBuffer[replayBufferNext] = std::move(experience);
-        replayBufferNext = (replayBufferNext + 1) % maxBufferSize;
-    }
+   // 1. Store experience in Replay Buffer
+   // We store the transition (s, a, r, s') to learn from it later.
+   // This breaks temporal correlations between consecutive samples.
+   Experience experience{
+       features::describe(observation, action), reward,
+       describeDecisions(nextObservation, features::usefulActions(nextObservation))};
+   if (replayBuffer.size() < maxBufferSize) {
+      replayBuffer.push_back(std::move(experience));
+   } else {
+      replayBuffer[replayBufferNext] = std::move(experience);
+      replayBufferNext = (replayBufferNext + 1) % maxBufferSize;
+   }
+   if (replayBuffer.size() < minBufferSize)
+      return;
 
-    stepCount++;
-    if (stepCount % trainingFrequency != 0) return;
+   // 2. Train on a random batch of experiences
+   for (size_t i = 0; i < batchSize; ++i) {
+      const Experience& e = replayBuffer[rnd::index(rng, static_cast<int>(replayBuffer.size()))];
+      // Bellman Equation: Target = Reward + Gamma * max(Q(next_state))
+      // Double DQN: the policy network chooses the next action, the target network gives its
+      // value. Taking both from the same network overestimates the Q-values.
+      const size_t next = bestDecision(policyNetwork, e.nextDecisions);
+      const double nextQ = targetNetwork.predict(e.nextDecisions[next])[0];
+      policyNetwork.accumulateGradient(e.decision, {e.reward + gamma * nextQ});
+   }
+   policyNetwork.applyGradients();
 
-    if (replayBuffer.size() < batchSize) return;
+   // 3. Decay Epsilon
+   // Reduce exploration rate over time to favor exploitation as the agent learns.
+   epsilon = std::max(epsilonMin, epsilon * epsilonDecay);
 
-    // 2. Train on a random batch of experiences
-    for (size_t i = 0; i < batchSize; ++i) {
-        std::uniform_int_distribution<size_t> dist(0, replayBuffer.size() - 1);
-        const auto& exp = replayBuffer[dist(rng)];
+   if (++stepCount % targetUpdateFrequency == 0)
+      targetNetwork = policyNetwork;
+}
 
-        std::vector<double> targetQ = policyNetwork.predict(exp.state);
-        std::vector<double> nextQ = targetNetwork.predict(exp.nextState);
+bool DeepRLOperator::isLearning() const {
+   return training;
+}
 
-        double maxNextQ = -1e9;
-        bool foundNext = false;
-        
-        for (int nextAction : exp.nextActions) {
-             if (nextAction >= 0 && nextAction < static_cast<int>(nextQ.size())) {
-                 if (nextQ[nextAction] > maxNextQ) {
-                     maxNextQ = nextQ[nextAction];
-                     foundNext = true;
-                 }
-             }
-        }
-        if (!foundNext) maxNextQ = 0.0;
-        
-        // Update the Q-value for the specific action taken
-        if (exp.action >= 0 && exp.action < static_cast<int>(targetQ.size())) {
-            // Bellman Equation: Target = Reward + Gamma * max(Q(next_state))
-            // We want the current Q-value to move towards this target.
-            targetQ[exp.action] = exp.reward + gamma * maxNextQ;
-            // Backpropagation: Train the network to predict this new target Q-value
-            policyNetwork.train(exp.state, targetQ);
-        }
-    }
+void DeepRLOperator::setTraining(const bool enabled) {
+   training = enabled;
+}
 
-    // 3. Decay Epsilon
-    // Reduce exploration rate over time to favor exploitation as the agent learns.
-    if (epsilon > epsilonMin) {
-        epsilon = std::max(epsilonMin, epsilon * epsilonDecay);
-    }
+void DeepRLOperator::setExploration(const double eps, const double minimum, const double decay) {
+   epsilon = eps;
+   epsilonMin = minimum;
+   epsilonDecay = decay;
+}
 
-    if (stepCount % targetUpdateFrequency == 0) {
-        targetNetwork = policyNetwork;
-    }
+double DeepRLOperator::getEpsilon() const {
+   return epsilon;
+}
+
+bool DeepRLOperator::save(const std::string& path) const {
+   std::ofstream out(path);
+   if (!out)
+      return false;
+   policyNetwork.save(out);
+   return static_cast<bool>(out);
+}
+
+bool DeepRLOperator::load(const std::string& path) {
+   std::ifstream in(path);
+   NeuralNetwork network({features::count, hiddenSize, hiddenSize, 1}, alpha);
+   if (!in || !network.load(in))
+      return false;
+   const std::vector<int> topology = network.getTopology();
+   if (topology.front() != features::count || topology.back() != 1)
+      return false;
+   policyNetwork = network;
+   targetNetwork = std::move(network);
+   return true;
 }

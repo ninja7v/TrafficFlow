@@ -27,37 +27,56 @@ cmake --build build
 
 Or even faster in Visual Studio Code: open the project and hit F5.
 
-Once launched, a window pops up with a random traffic network running until you close it.
+Once launched, a window pops up with a random traffic network running until you close it. Run it from the repository folder (or from `build/`) so that the trained models in `models/` are found; otherwise the learning controllers start learning from scratch.
+
+The **Boost** slider only makes the simulation run faster (more steps per frame): the traffic model, and so the results, are the same at any boost.
 
 ## 🧠Methods & results
-Every intersection decides which incoming road gets the green light, once per traffic light period (2 s / boost). The control panel lets you pick the method:
+Every intersection decides which incoming road gets the green light, once per traffic light period (2 simulated seconds). The control panel lets you pick the controller:
 
-- **Q-learning**: a table learns the value of each decision for each traffic situation, starting from random choices.
-- **DQN (Deep Q-Network)**: a neural network replaces the table, so what is learned in one situation carries over to similar ones.
-- **Heuristic**: hand-written rules. Keep the green while traffic flows, otherwise serve the busiest road whose vehicles can actually leave.
+| Controller | What it does |
+|---|---|
+| Random *(baseline)* | A random road at every decision. |
+| Fixed cycle *(baseline)* | Each road in turn, whatever the traffic. |
+| Heuristic | Hand-written rules: keep the green while traffic flows, otherwise serve a full road first, then the busiest road whose vehicles can actually leave. |
+| Max pressure | Rule from the literature: serve the road with the most vehicles compared to the roads they are going to. |
+| Q-learning | Reinforcement learning with a table. |
+| DQN (Deep Q-Network) | Reinforcement learning with a neural network. **Default.** |
 
-The learning methods see, for each incoming road, how many vehicles it holds, the speed of its first vehicle and how much it is used. Their reward is the number of vehicles that crossed the intersection minus a penalty for the vehicles waiting.
+The two learning controllers are trained beforehand on random networks with random traffic (`train` tool) and shipped in `models/`. They score the decision "give the green light to this road" from the point of view of that road, so a single model drives every intersection of any network. Their reward is the opposite of the number of vehicles waiting at the intersection. Details in [docs/MODEL.md](docs/MODEL.md).
 
-Flow in trips per simulated minute, over the first 10 minutes → after 50-60 minutes. Each seed is a different random network, the same for every method, with up to 70 vehicles:
+### Results
+30 random networks that were **never used for training**, the same networks and the same vehicles for every controller, 20 simulated minutes each. Delay is the time lost per trip compared to an empty network without lights (mean ± standard deviation over the networks):
 
-| Method | Seed 1 | Seed 2 | Seed 3 |
-|---|---|---|---|
-| DQN | 206 → **230** | 169 → **211** | 190 → **221** |
-| Q-learning | 167 → **198** | 154 → **177** | 166 → **187** |
-| Heuristic | 220 → 234 | 201 → 207 | 218 → 212 |
-| Fixed cycle *(baseline)* | 160 → 168 | 160 → 169 | 212 → 211 |
-| Random *(baseline)* | 116 → 129 | 106 → 136 | 143 → 147 |
+| Controller | Light (60 veh/min) | Medium (120 veh/min) | Heavy (180 veh/min) | Saturated: trips/min |
+|---|---|---|---|---|
+| Random *(baseline)* | 20.0 s | 23.8 s | 37.8 s | 136 |
+| Fixed cycle *(baseline)* | 9.7 s | 10.8 s | 13.5 s | 205 |
+| Max pressure | 3.9 s | 7.7 s | 10.8 s | 220 |
+| Heuristic | 3.8 s | 7.0 s | 9.8 s | 227 |
+| Q-learning | 4.0 s | 7.5 s | 10.0 s | 228 |
+| **DQN** | **3.4 s** | **6.4 s** | **9.0 s** | **237** |
 
-Both learning methods improve the flow over time. DQN ends level with the hand-written heuristic. Q-learning beats the fixed cycle on 2 networks out of 3 but stays below the heuristic, because a table cannot generalize between similar situations.
+![Benchmark](docs/benchmark.png)
 
-To reproduce (`fixed`, `random`, `heuristic`, `qlearning` or `dqn`, then seed, minutes, window):
+- **DQN is better than the random baseline and than the fixed cycle on 30 networks out of 30 in every scenario** (delay divided by 4 to 6 compared to random), and better than the hand-written heuristic on 119 of the 120 runs.
+- Q-learning is far better than both baselines (30/30) and level with the heuristic: a table with a few levels cannot do much better than good hand-written rules.
+- Known limit: when far more vehicles are sent than the network can take, with enough vehicles allowed in to fill it (`overload` scenario), every traffic-responsive controller sometimes ends in gridlock (DQN: 3 networks out of 30, heuristic: 7, max pressure: 20). See [docs/MODEL.md](docs/MODEL.md).
+
+To reproduce (a few minutes):
 ```cmd
-./build/benchmark dqn 1 60 10
+./build/train dqn
+./build/train qlearning
+./build/benchmark --seeds 30 --csv docs/results/benchmark.csv
+python3 tools/plot_results.py
 ```
+`train` is deterministic: it rewrites exactly the models of the repository. `benchmark` options are listed at the top of `tools/benchmark.cpp`.
 
 ## 📖Documentation
 This code is well commented for [Doxygen](https://www.doxygen.nl/index.html).
 You can generate a complete documentation set using Doxygen.
+
+The simulation model, the controllers, the reward and the experiments are described in [docs/MODEL.md](docs/MODEL.md).
 
 More explanations and details are available in the project [Wiki](https://github.com/ninja7v/Traffic-Simulator/wiki)
 

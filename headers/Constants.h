@@ -6,11 +6,15 @@
 // Libraries
 #include<algorithm> // To use max()
 
-enum LearningType {
-      Q_LEARNING,
-      DQN,
-      HEURISTIC
-   };
+/** Traffic light controller: 2 baselines, 2 hand-written rules and 2 learning methods. */
+enum class ControllerType {
+   RANDOM,       // Baseline: random road every decision
+   FIXED_CYCLE,  // Baseline: each road in turn
+   HEURISTIC,    // Hand-written rules
+   MAX_PRESSURE, // Hand-written rule from the literature: serve the highest pressure
+   Q_LEARNING,   // Tabular reinforcement learning
+   DQN           // Deep reinforcement learning
+};
 
 namespace constants {
 /** @defgroup Network parameters */
@@ -19,7 +23,11 @@ namespace constants {
    constexpr int sizeX{ 110 };
    /** Number of possible positions on the Y axis for the intersections. It must be a positive number. */
    constexpr int sizeY{ 70 };
-   /** Overall speed of the simulation. It must be a positive number. */
+   /** Duration of one simulation step in seconds. The model always advances with this step,
+    * so its behavior does not depend on the frame rate nor on the boost. */
+   constexpr double timeStep{ 1.0 / 60.0 };
+   /** Speed of the simulation in the window: simulated seconds per real second. It only changes
+    * how many steps are computed per frame, never the model. It must be a positive number. */
    extern double boost;
    /** Scale of the representation. It must be a positive number. */
    constexpr double zoom{ 1.0 };
@@ -33,22 +41,27 @@ namespace constants {
 /**@}*/
 /** @defgroup Vehicle parameters */
 /**@{*/
-   /** Frequency of appearance of vehicles. It must be in [0, 99]. */
-   extern int flow;
-   /** Maximum number of vehicle simultaneously. It must be a positive number. */
+   /** Traffic demand: vehicles generated per simulated minute (Poisson arrivals). It must be >= 0. */
+   extern double demand;
+   /** Maximum number of vehicle simultaneously in the network. The vehicles generated while the
+    * network is full, or while their first road is full, wait outside. It must be a positive number. */
    extern int nbVehicleMax;
-   /** Maximum car speed. It must be a positive number. */
-   extern double speedMaxCar;
-   /** Maximum Bike speed. It must be a positive number. */
-   extern double speedMaxBike;
-   /** Maximum Truck speed. It must be a positive number. */
-   extern double speedMaxTruck;
-   /** Car acceleration per frame. It must be a positive number. */
-   extern double accelerationCar;
-   /** Bike acceleration per frame. It must be a positive number. */
-   extern double accelerationBike;
-   /** Truck acceleration per frame. It must be a positive number. */
-   extern double accelerationTruck;
+   /** Maximum number of vehicles waiting outside the network. Above it, new vehicles are rejected. */
+   constexpr int nbWaitingVehicleMax{ 300 };
+   /** Maximum car speed in grid unit per step. It must be a positive number. */
+   constexpr double speedMaxCar{ 0.3 };
+   /** Maximum Bike speed in grid unit per step. It must be a positive number. */
+   constexpr double speedMaxBike{ 0.4 };
+   /** Maximum Truck speed in grid unit per step. It must be a positive number. */
+   constexpr double speedMaxTruck{ 0.2 };
+   /** Car acceleration in grid unit per step, per step. It must be a positive number. */
+   constexpr double accelerationCar{ 0.003 };
+   /** Bike acceleration in grid unit per step, per step. It must be a positive number. */
+   constexpr double accelerationBike{ 0.004 };
+   /** Truck acceleration in grid unit per step, per step. It must be a positive number. */
+   constexpr double accelerationTruck{ 0.002 };
+   /** A vehicle slower than this fraction of its maximum speed is waiting (in a queue). */
+   constexpr double waitingSpeedRatio{ 0.1 };
    /** Car width in pixel. It must be a positive number. */
    constexpr double widthCar  { 2.0 * zoom };
    /** Bike width in pixel. It must be a positive number. */
@@ -77,9 +90,7 @@ namespace constants {
    /** Probability for a road to be one-way (the others are two-way). It must be in [0, 1].
     * Some one-way roads are made two-way if needed so that every intersection is reachable. */
    extern double oneWayRoadRatio;
-   /** Maximum number of connected input roads (for state standardization). */
-   extern int maxConnectedInputRoads;
-   /** Duration of a state in seconds. */
+   /** Time between two traffic light decisions in simulated seconds. It must be a positive number. */
    extern double trafficLightPeriod;
 /**@}*/
 /** @defgroup Window parameters */
@@ -97,24 +108,9 @@ namespace constants {
    /** Ratio for the Y axis. */
    constexpr int ratioY{ /*1*/(SCREEN_HEIGHT - 2*margin) / (sizeY - 1) }; // If sizeY>1
 /**@}*/
-/** @defgroup Learning parameters */
+/** @defgroup Controller parameters */
 /**@{*/
-   /** Learning type. */
-   extern LearningType learningType;
-   /** Size of the standardized state vector. */
-   extern int stateSize;
+   /** Traffic light controller. */
+   extern ControllerType controllerType;
 /**@}*/
-
-   /** function to adjust constants when boost is changed */
-   inline void updateBoostDependentConstants()
-   {
-      flow = static_cast<int>(10.0 * boost);
-      trafficLightPeriod = 2.0 / boost;
-      speedMaxCar   = 0.3 * boost;
-      speedMaxBike  = 0.4 * boost;
-      speedMaxTruck = 0.2 * boost;
-      accelerationCar   = 0.003 * boost;
-      accelerationBike  = 0.004 * boost;
-      accelerationTruck = 0.002 * boost;
-   }
 }

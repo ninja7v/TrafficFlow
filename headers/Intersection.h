@@ -45,26 +45,31 @@ class Intersection {
    /** @brief Comparison operator.
     * @returns Equal? */
    bool operator==(const Intersection& i) const;
-   /** @brief Update the intersection lights (RL operator or heuristic).
+   /** @brief Advance the intersection by one simulation step: measure the traffic, and take a
+    * traffic light decision when the traffic light period is over.
     * @param simulationTime Current simulation time in seconds. */
    void update(double simulationTime);
-   /** @brief Set a new operator for this intersection. */
+   /** @brief Set a new controller for this intersection. */
    void setOperator(std::shared_ptr<IntersectionOperator> newOp);
-   /** @brief Evaluate heuristic fallback. */
-   int computeHeuristicAction() const;
+   /** @brief Describe the current situation of the intersection for the controllers.
+    * @param simulationTime Current simulation time in seconds.
+    * @returns Observation */
+   Observation observe(double simulationTime) const;
+   /** @brief Reward of a decision: the opposite of the time lost by the vehicles on the input
+    * roads until the next decision, plus a bonus for the vehicles that left them.
+    * @param waitingVehicles Average number of vehicles waiting on the input roads
+    * @param departures Number of vehicles that crossed the intersection
+    * @param longestWait Longest time a first vehicle has been waiting, in seconds
+    * @returns Reward (higher is better) */
+   static double reward(double waitingVehicles, int departures, double longestWait);
+   /** @brief Getter.
+    * @returns Index of the input road with the green light */
+   int getGreenRoadIndex() const;
 
  protected:
  private:
-   /** @brief Construct the dynamic learning state matrix. */
-   std::vector<int> constructState() const;
-   /** @brief Reward of the last action interval: vehicles that crossed the intersection
-    * (flow) minus a penalty for the vehicles queuing on the input roads.
-    * Updates the departure counter, so call it once per decision. */
-   double calculateReward();
-   /** @brief Pass metrics to operator for mathematical learning. */
-   void performLearning(const std::vector<int>& state,
-                        double reward,
-                        const std::vector<int>& availableActions);
+   /** @brief Reward since the last decision. Starts a new measure, so call it once per decision. */
+   double collectReward();
 
    /** Intersection identifier. */
    const int idIntersection;
@@ -77,19 +82,25 @@ class Intersection {
    /** Input / output roads. */
    std::vector<Road*> inputRoads;
 
-   /** @defgroup RL components */
+   /** @defgroup Controller */
    /**@{*/
-   /** operator to decide traffic light actions */
+   /** Controller deciding the traffic lights */
    std::shared_ptr<IntersectionOperator> op;
    /** Index of the current green road in 'input' vector */
    int currentGreenRoadIndex;
-   /** Last state observed */
-   std::vector<int> lastState;
-   /** Departures from the input roads counted at the last decision */
-   int lastDepartures = 0;
-   /** Last action taken */
+   /** Situation when the last decision was taken (no input road: not observed yet) */
+   Observation lastObservation;
+   /** Last decision */
    int lastAction;
    /** Simulation time (s) of the last traffic light decision */
-   double lastSwitchTime;
+   double lastDecisionTime;
+   /** Simulation time (s) since which the green road has the green light */
+   double greenSince;
+   /** Vehicles waiting on the input roads, summed over the steps since the last decision */
+   long waitingVehicleSteps = 0;
+   /** Number of steps since the last decision */
+   int stepsSinceDecision = 0;
+   /** Departures from the input roads counted at the last decision */
+   int lastDepartures = 0;
    /**@}*/
 };

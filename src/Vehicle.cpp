@@ -3,7 +3,6 @@
 #include <list>      // To use lists
 #include <GLFW/glfw3.h> // To display
 #include <iostream>  // To debug
-#include <ctime>     // To use clock_t
 #include <vector>    // To use vectors
 #include <memory>    // To use smart pointers
 #include <algorithm> // To use max
@@ -22,8 +21,7 @@ Vehicle::Vehicle(const Intersection* i1,
      isBraking(false),
      speed(0.0),
      destination(target),
-     itinerary(track),
-     enterRoadTime(clock()) {
+     itinerary(track) {
    if (i1)
       position = i1->getPosition();
    setDirection(i2);
@@ -53,11 +51,9 @@ void Vehicle::moveToVehicle(const std::shared_ptr<Vehicle> v) {
       else
          speed = (speed < breakingSpeed(d)) ? speed + getAcceleration() : (speed + breakingSpeed(d)) / 2.0;
       // Move
-      const std::array<double, 2> move {direction[0] * speed, direction[1] * speed};
-      const double move_dist = std::sqrt(std::pow(move.at(0), 2) + std::pow(move.at(1), 2)) - (getHeight() + v->getHeight()) / 12.0;
-      if (move_dist < d) {
-         position[0] += move.at(0);
-         position[1] += move.at(1);
+      if (speed < d) { // The direction is a unit vector: the vehicle moves by 'speed'
+         position[0] += direction[0] * speed;
+         position[1] += direction[1] * speed;
       }
       else { // Snap to vehicle to avoid overshooting
          position[0] = v->position[0] - direction[0] * (getHeight() + v->getHeight()) / 7.0;
@@ -200,8 +196,44 @@ const std::vector<double>& Vehicle::getPosition() const {
    return position;
 }
 
-clock_t Vehicle::getEnterRoadTime() const {
-   return enterRoadTime;
+bool Vehicle::isWaiting() const {
+   return speed < constants::waitingSpeedRatio * getSpeedMax();
+}
+
+void Vehicle::updateWaitingTime() {
+   if (isWaiting()) {
+      waitingTime += constants::timeStep;
+      roadWaitingTime += constants::timeStep;
+   }
+}
+
+void Vehicle::stop() {
+   speed = 0.0;
+}
+
+double Vehicle::getWaitingTime() const {
+   return waitingTime;
+}
+
+double Vehicle::getRoadWaitingTime() const {
+   return roadWaitingTime;
+}
+
+void Vehicle::resetRoadWaitingTime() {
+   roadWaitingTime = 0.0;
+}
+
+double Vehicle::getCreationTime() const {
+   return creationTime;
+}
+
+double Vehicle::getFreeFlowTime() const {
+   return freeFlowTime;
+}
+
+void Vehicle::setTrip(const double creation, const double freeFlow) {
+   creationTime = creation;
+   freeFlowTime = freeFlow;
 }
 
 void Vehicle::setDirection(const Intersection* i) {
@@ -229,6 +261,3 @@ void Vehicle::setStatus(const bool arrived) {
    isArrived = arrived;
 }
 
-void Vehicle::setEnterRoadTime(clock_t t) {
-   enterRoadTime = t;
-}

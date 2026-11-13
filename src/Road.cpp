@@ -1,11 +1,9 @@
 // Libraries
 #include <GLFW/glfw3.h> // To display
-#include <ctime>        // To use clock() and clock_t
 #include <memory>       // To use smart pointers
 #include <cmath>        // To use sqrt
 #include <list>         // To use lists
 // Headers
-#include "../headers/Global.h"
 #include "../headers/Road.h"
 #include "../headers/Map.h"
 #include "../headers/Constants.h"
@@ -18,7 +16,6 @@ Road::Road(const int id,
      i2(end),
      length(sqrt(pow(begin->getPosition()[0] - end->getPosition()[0], 2) +
                  pow(begin->getPosition()[1] - end->getPosition()[1], 2))),
-     totalNumberOfArringVehicles(0),
      direction{ (end->getPosition()[0] - begin->getPosition()[0]) / length,
                 (end->getPosition()[1] - begin->getPosition()[1]) / length },
      roadCoordinates{ direction[1] * constants::halfWidthRoad + i1->getPosition()[0] * constants::ratioX + constants::margin,
@@ -49,8 +46,7 @@ void Road::addVehicle(std::shared_ptr<Vehicle> v) {
       Vehicles.push_back(v);
       v->setPosition(i1->getPosition());
       v->setDirection(i2);
-      v->setEnterRoadTime(clock());
-      totalNumberOfArringVehicles += 1;
+      v->resetRoadWaitingTime();
    }
 }
 
@@ -79,8 +75,12 @@ int Road::getNumberOfDepartedVehicles() const {
 int Road::getQueueLength() const {
    int queue = 0;
    for (const auto& v : Vehicles)
-      queue += v->getSpeed() < 0.1 * v->getSpeedMax();
+      queue += v->isWaiting();
    return queue;
+}
+
+double Road::getHeadWaitingTime() const {
+   return Vehicles.empty() ? 0.0 : Vehicles.front()->getRoadWaitingTime();
 }
 
 void Road::removeVehicle() {
@@ -98,12 +98,11 @@ void Road::moveVehicles() {
          if (atIntersection) {
             if (!v->nextRoad() && v->getDestination() != i2) {
                // No itinerary but not at destination (e.g. no path found at spawn): try again from here.
-               v->setNewItinerary(Map::track(i2, v->getDestination()));
+               v->setNewItinerary(Map::track(i2, v->getDestination(), this));
             }
             if (!v->nextRoad()) {
                this->removeVehicle();
                v->setStatus(true);
-               global::numberOfVehicles -= 1;
             }
             else {
                if (v->nextRoad()->canEnter(*v)) {
@@ -112,8 +111,9 @@ void Road::moveVehicles() {
                   this->removeVehicle();
                }
                else {
-                  // Next road is full: look for another route from the intersection we are at.
-                  v->setNewItinerary(Map::track(i2, v->getDestination()));
+                  // Next road is full: wait, and look for another route from the intersection we are at.
+                  v->stop();
+                  v->setNewItinerary(Map::track(i2, v->getDestination(), this));
                }
             }
          }
@@ -132,6 +132,8 @@ void Road::moveVehicles() {
             }
          }
       }
+      for (const auto& vehicle : Vehicles)
+         vehicle->updateWaitingTime();
    }
 }
 
@@ -210,30 +212,4 @@ const std::list<std::shared_ptr<Vehicle>>& Road::getVehicles() const {
 
 std::array<double, 2> Road::getDirection() const {
    return direction;
-}
-
-int Road::getTotalNumberOfArringVehicles() const {
-   return totalNumberOfArringVehicles;
-}
-
-std::tuple<int, int, int> Road::getVehicleStats(double averageNewVehicles) const {
-   // Occupancy: 0=Empty, 1=Low, 2=High
-   const size_t nbVehicles = Vehicles.size();
-   const int occupancy = (nbVehicles < 1) ? 0 :
-                         (nbVehicles < 7) ? 1 : 2;
-
-   // First Car Speed: 0=Stopped, 1=Medium, 2=Fast
-   int speedState = 0; // Default to 1 if there are cars
-   if (!Vehicles.empty()) {
-       const double s = Vehicles.front()->getSpeed();
-       speedState = (s < constants::speedMaxCar * 0.1) ? 0 :
-                    (s < constants::speedMaxCar * 0.8) ? 1 : 2;
-   }
-
-   // Usage: 0=Few, 1=Medium, 2=Crowded
-   const double ratio = (averageNewVehicles > 0) ? totalNumberOfArringVehicles / averageNewVehicles : 1.0;
-   const int usage = ratio < 0.5 ? 0 :
-                     ratio < 1.5 ? 1 : 2;
-
-   return std::make_tuple(occupancy, speedState, usage);
 }
