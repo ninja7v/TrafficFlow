@@ -1,11 +1,9 @@
 // Libraries
 #include <GLFW/glfw3.h> // To display
-#include <algorithm>    // To use clamp
+#include <algorithm>    // To use max
 #include <memory>       // To use smart pointers
-#include <numeric>      // To use accumulate
 // Headers
 #include "../headers/Constants.h"
-#include "../headers/Global.h"
 #include "../headers/Intersection.h"
 #include "../headers/Road.h"
 
@@ -19,7 +17,8 @@ Intersection::Intersection(const int n,
       op(op),
       currentGreenRoadIndex(0),
       lastAction(0),
-      lastSwitchTime(0.0) {
+      lastDecisionTime(0.0),
+      greenSince(0.0) {
 }
 
 bool Intersection::isRed(const int id) const {
@@ -61,125 +60,100 @@ bool Intersection::operator==(const Intersection& i) const {
 
 void Intersection::setOperator(std::shared_ptr<IntersectionOperator> newOp) {
    op = newOp;
-   lastState.clear();
+   lastObservation.approaches.clear(); // The next decision starts a new learning transition
 }
 
-namespace {
-   /** The front vehicle of the road would leave it if the light were green (not blocked downstream). */
-   bool canDischarge(const Road* r) {
-      if (!r->containVehicle())
-         return false;
-      const auto& front = r->getVehicles().front();
-      const Road* next = front->nextRoad();
-      return !next || next->canEnter(*front);
-   }
+int Intersection::getGreenRoadIndex() const {
+   return currentGreenRoadIndex;
 }
 
-int Intersection::computeHeuristicAction() const {
-   if (inputRoads.empty())
-      return -1;
-
-   // Keep the current light green while its first vehicle is approaching and can go through.
-   // A blocked vehicle must not hold the green: that starves the other roads (gridlock).
-   if (currentGreenRoadIndex >= 0 && currentGreenRoadIndex < static_cast<int>(inputRoads.size())) {
-      const Road* currentGreen = inputRoads[currentGreenRoadIndex];
-      constexpr double approachingDistance = 2.0; // Grid units
-      if (canDischarge(currentGreen) &&
-          currentGreen->getVehicles().front()->distance(currentGreen->getEnd()) < approachingDistance) {
-         return currentGreenRoadIndex;
-      }
-   }
-
-   // Otherwise, among the roads whose traffic can go through: a full road first, then the
-   // road with the most vehicles.
-   int choosenRoad = -1;
-   size_t bestScore = 0;
-   for (size_t i = 0; i < inputRoads.size(); ++i) {
-      const Road* r = inputRoads[i];
-      if (!canDischarge(r))
-         continue;
-      const size_t score = r->getVehicles().size() + (r->isFull() ? 1000 : 0);
-      if (score > bestScore) {
-         bestScore = score;
-         choosenRoad = static_cast<int>(i);
-      }
-   }
-   return choosenRoad != -1 ? choosenRoad : currentGreenRoadIndex;
-}
-
-std::vector<int> Intersection::constructState() const {
-   std::vector<int> state;
-   state.reserve(constants::stateSize);
-   state.push_back(currentGreenRoadIndex);
-
-   const int totalNumberOfArrivingVehicle =
-       std::accumulate(inputRoads.begin(), inputRoads.end(), 0, [](int sum, const Road* r) {
-          return sum + r->getTotalNumberOfArringVehicles();
-       });
-   const double averageNewVehicles =
-       static_cast<double>(totalNumberOfArrivingVehicle) / static_cast<double>(inputRoads.size());
+Observation Intersection::observe(const double simulationTime) const {
+   Observation observation;
+   observation.currentGreen = currentGreenRoadIndex;
+   observation.greenDuration = simulationTime - greenSince;
+   observation.approaches.reserve(inputRoads.size());
    for (const Road* r : inputRoads) {
-      auto stats = r->getVehicleStats(averageNewVehicles);
-      state.push_back(std::get<0>(stats)); // Occupancy
-      state.push_back(std::get<1>(stats)); // Speed
-      state.push_back(std::get<2>(stats)); // Usage
+      ApproachObservation a;
+      a.length = r->getLength();
+      a.headDistance = a.length;
+      const auto& vehicles = r->getVehicles();
+      if (!vehicles.empty()) {
+         const auto& front = vehicles.front();
+         a.vehicles = static_cast<int>(vehicles.size());
+         a.queue = r->getQueueLength();
+         a.headWaitingTime = r->getHeadWaitingTime();
+         a.headDistance = front->distance(r->getEnd());
+         // Full: the queue reaches the start of the road (not a vehicle that has just entered)
+         a.full = r->isFull() && vehicles.back()->isWaiting();
+         const Road* next = front->nextRoad();
+         a.canDischarge = !next || next->canEnter(*front);
+         for (const auto& v : vehicles) {
+            if (const Road* n = v->nextRoad())
+               a.downstreamVehicles += static_cast<double>(n->getVehicles().size());
+         }
+         a.downstreamVehicles /= a.vehicles;
+      }
+      observation.approaches.push_back(a);
    }
-
-   // Pad to standardized size
-   while (state.size() < static_cast<size_t>(constants::stateSize)) {
-      state.push_back(0);
-   }
-   return state;
+   return observation;
 }
 
-double Intersection::calculateReward() {
+double Intersection::reward(const double waitingVehicles,
+                            const int departures,
+                            const double longestWait) {
+   // The network objective is the total time lost by the vehicles. Its local, per decision, part
+   // is the number of vehicles waiting at this intersection: this is the main term.
+   // - Departures: small bonus, so that discharging a queue is rewarded as soon as it starts.
+   // - Longest wait: a vehicle alone on a quiet road costs little, so the queue term alone lets
+   //   it wait for minutes. This term grows until the vehicle is served.
+   // Scaled to stay around [-1, 0] in usual traffic.
+   constexpr double longWait = 30.0; // Seconds
+   return -waitingVehicles / 10.0 + departures / 20.0 - std::max(longestWait - longWait, 0.0) / 60.0;
+}
+
+double Intersection::collectReward() {
    int departures = 0;
-   int queue = 0;
+   double longestWait = 0.0;
    for (const Road* r : inputRoads) {
       departures += r->getNumberOfDepartedVehicles();
-      queue += r->getQueueLength();
+      longestWait = std::max(longestWait, r->getHeadWaitingTime());
    }
+   const double waitingVehicles =
+       stepsSinceDecision > 0 ? static_cast<double>(waitingVehicleSteps) / stepsSinceDecision : 0.0;
    const int throughput = departures - lastDepartures;
    lastDepartures = departures;
-   // Throughput is what the flow metric measures. The queue penalty makes the agent care about
-   // how many vehicles wait (a mean over vehicles, as before, cannot tell 1 from 15 stopped cars).
-   // Scaled to stay around [-1, 1] for typical intersections.
-   return throughput / 5.0 - queue / 20.0;
-}
-
-void Intersection::performLearning(const std::vector<int>& state, double reward, const std::vector<int>& availableActions) {
-   if (!lastState.empty()) {
-      op->learn(lastState, lastAction, reward, state, availableActions);
-   }
+   waitingVehicleSteps = 0;
+   stepsSinceDecision = 0;
+   return reward(waitingVehicles, throughput, longestWait);
 }
 
 void Intersection::update(const double simulationTime) {
-   if (inputRoads.empty() || simulationTime - lastSwitchTime < constants::trafficLightPeriod)
+   if (inputRoads.empty())
       return;
-   lastSwitchTime = simulationTime;
+   // Measure of the traffic for the reward
+   for (const Road* r : inputRoads)
+      waitingVehicleSteps += r->getQueueLength();
+   stepsSinceDecision++;
 
-   if (constants::learningType == LearningType::HEURISTIC || !op) {
-      const int action = computeHeuristicAction();
-      if (action != -1) {
-         currentGreenRoadIndex = action;
-         lastAction = action;
-      }
+   if (simulationTime - lastDecisionTime < constants::trafficLightPeriod)
       return;
-   }
+   lastDecisionTime = simulationTime;
+   // Nothing to decide with one road (always green) or without controller
+   if (!op || inputRoads.size() < 2)
+      return;
 
-   const std::vector<int> state = constructState();
-   std::vector<int> availableActions;
-   for (size_t i = 0; i < inputRoads.size(); ++i) {
-      availableActions.push_back(static_cast<int>(i));
-   }
+   const Observation observation = observe(simulationTime);
+   const double reward = collectReward();
+   if (!lastObservation.approaches.empty() && op->isLearning())
+      op->learn(lastObservation, lastAction, reward, observation);
 
-   // One learning update represents one complete action interval.
-   performLearning(state, calculateReward(), availableActions);
-   const int action = op->decide(state, availableActions);
-
+   const int action = op->decide(observation);
    if (action >= 0 && action < static_cast<int>(inputRoads.size())) {
-      currentGreenRoadIndex = action;
+      if (action != currentGreenRoadIndex) {
+         currentGreenRoadIndex = action;
+         greenSince = simulationTime;
+      }
       lastAction = action;
-      lastState = state;
+      lastObservation = observation;
    }
 }

@@ -111,9 +111,12 @@ target_link_libraries(TrafficFlow PRIVATE TrafficLib project_warnings)
 set_target_properties(TrafficFlow PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
-# Headless benchmark comparing the traffic light controllers (not run by the tests)
+# Headless tools (not run by the tests): benchmark compares the traffic light controllers,
+# train trains the learning ones and writes their models.
 add_executable(benchmark tools/benchmark.cpp)
 target_link_libraries(benchmark PRIVATE TrafficLib project_warnings)
+add_executable(train tools/train.cpp)
+target_link_libraries(train PRIVATE TrafficLib project_warnings)
 
 # ----------------------------------------------------------------------------
 # Tests

@@ -5,7 +5,7 @@
 #include <backends/imgui_impl_glfw.h>    // Platform backend: handles GLFW inputs and window events
 #include <backends/imgui_impl_opengl2.h> // Renderer backend: draws ImGui with fixed-function OpenGL, like the simulator
 #include <cmath>                         // To use sqrt and pow
-#include <cstdlib>                       // To use std::getenv, rand
+#include <cstdlib>                       // To use std::getenv
 #include <ctime>                         // To use time()
 #include <delaunator.hpp>                // To compute the Delaunay triangulation
 #include <imgui.h>                       // Core ImGui functionality (panel)
@@ -20,14 +20,65 @@
 #include "../headers/Bike.h"
 #include "../headers/Car.h"
 #include "../headers/Constants.h"
+#include "../headers/Controllers.h"
 #include "../headers/DeepRLOperator.h"
-#include "../headers/Global.h"
 #include "../headers/Graph.h"
 #include "../headers/Network.h"
 #include "../headers/QLearningOperator.h"
+#include "../headers/Random.h"
 #include "../headers/Truck.h"
 
+double TrafficStats::flow() const {
+   return duration > 0.0 ? completed / (duration / 60.0) : 0.0;
+}
+
+double TrafficStats::meanTravelTime() const {
+   double sum = 0.0;
+   for (const float t : travelTimes)
+      sum += t;
+   return travelTimes.empty() ? 0.0 : sum / static_cast<double>(travelTimes.size());
+}
+
+double TrafficStats::meanDelay() const {
+   return travelTimes.empty() ? 0.0
+                              : meanTravelTime() - freeFlowTime / static_cast<double>(travelTimes.size());
+}
+
+double TrafficStats::travelTimePercentile(const double ratio) const {
+   if (travelTimes.empty())
+      return 0.0;
+   std::vector<float> sorted = travelTimes;
+   const size_t k = std::min(sorted.size() - 1, static_cast<size_t>(ratio * static_cast<double>(sorted.size())));
+   std::nth_element(sorted.begin(), sorted.begin() + static_cast<std::ptrdiff_t>(k), sorted.end());
+   return sorted[k];
+}
+
+double TrafficStats::timeSpentPerVehicle() const {
+   const int vehicles = generated - rejected; // The time of a rejected vehicle is not counted
+   return vehicles > 0 ? timeSpent / vehicles : 0.0;
+}
+
+double TrafficStats::meanQueue() const {
+   return duration > 0.0 ? timeWaiting / duration : 0.0;
+}
+
+double TrafficStats::meanVehicles() const {
+   return duration > 0.0 ? timeInNetwork / duration : 0.0;
+}
+
+double TrafficStats::meanRelativeSpeed() const {
+   return timeInNetwork > 0.0 ? relativeSpeedTime / timeInNetwork : 0.0;
+}
+
 Network::Network() : Network(static_cast<unsigned int>(time(nullptr))) {}
+
+void Network::setController(const ControllerType type) {
+   constants::controllerType = type;
+   auto& controller = controllers[static_cast<size_t>(type)];
+   if (!controller)
+      controller = makeOperator(type, seed);
+   setOperator(controller);
+}
 
 void Network::setOperator(std::shared_ptr<IntersectionOperator> op) {
    globalOperator = op;
@@ -37,19 +88,8 @@ void Network::setOperator(std::shared_ptr<IntersectionOperator> op) {
    }
 }
 
-Network::Network(const unsigned int seed) {
-   srand(seed);
-   // Global Intersection Operator
-   qLearningOp = std::make_shared<QLearningOperator>();
-   deepRLOp = std::make_shared<DeepRLOperator>();
-
-   if (constants::learningType == LearningType::Q_LEARNING) {
-      globalOperator = qLearningOp;
-   } else if (constants::learningType == LearningType::DQN) {
-      globalOperator = deepRLOp;
-   } else {
-      globalOperator = nullptr;
-   }
+Network::Network(const unsigned int seed) : seed(seed), demandRng(seed ^ 0x9E3779B9u) {
+   std::mt19937 rng(seed); // Network layout
    // Construct card as preparation
    auto distance = [&](std::vector<double> p1, std::vector<double> p2) {
       return sqrt(pow(p2[0] - p1[0], 2) + pow(p2[1] - p1[1], 2));
@@ -66,12 +106,12 @@ Network::Network(const unsigned int seed) {
    for (int k = 0; k < constants::nbIntersections; k++) {
       std::vector<double> position(2);
       do {
-         position[0] = rand() % constants::sizeX;
-         position[1] = rand() % constants::sizeY;
+         position[0] = rnd::index(rng, constants::sizeX);
+         position[1] = rnd::index(rng, constants::sizeY);
       } while (!isPositionValid(position));
       positions.push_back(position[0]);
       positions.push_back(position[1]);
-      Intersections.push_back(std::make_unique<Intersection>(k, position, globalOperator));
+      Intersections.push_back(std::make_unique<Intersection>(k, position));
    }
    // Roads: the Delaunay triangulation gives a connected planar graph, where point k is
    // Intersections[k]. Informations here: https://github.com/delfrrr/delaunator-cpp
@@ -84,7 +124,6 @@ Network::Network(const unsigned int seed) {
          undirectedEdges.insert({std::min(a, b), std::max(a, b)});
       }
    }
-   std::mt19937 rng(static_cast<unsigned int>(rand()));
    const std::vector<graph::Edge> roads = graph::orientEdges(
        constants::nbIntersections, {undirectedEdges.begin(), undirectedEdges.end()},
        constants::oneWayRoadRatio, rng);
@@ -96,12 +135,7 @@ Network::Network(const unsigned int seed) {
       map.setConnection(a, b, Roads.back().get());
       end->addInputRoad(Roads.back().get());
    }
-   // Constants
-   for (const auto& i : Intersections) {
-      constants::maxConnectedInputRoads =
-          std::max(constants::maxConnectedInputRoads, i->getNumberInputRoads());
-   }
-   constants::stateSize = 1 + 3 * constants::maxConnectedInputRoads;
+   setController(constants::controllerType);
 }
 
 GLFWwindow* Network::initWindowAndImGui() {
@@ -187,58 +221,43 @@ void Network::printTerminalOutput(const double smoothedFlowPerMin,
                 << " | AvgSpeed: " << smoothedAvgSpeed << std::endl;
       return;
    }
-   const char* methods[] = {"Q-Learning", "DQN", "Heuristic"};
    std::cout << "========== Control Panel ==========" << '\n'
              << "Time: " << elapsedSimulationMinutes << " min (simulation)" << '\n'
              << "FPS: " << lastFPS << '\n'
              << "Intersections: " << constants::nbIntersections << '\n'
              << "Roads: " << Roads.size() << '\n'
-             << "Vehicles: " << Vehicles.size() << '\n'
+             << "Vehicles: " << Vehicles.size() << " (+" << waitingTrips.size() << " waiting to enter)" << '\n'
              << "Completed trips: " << completedVehicles << '\n'
              << "Flow: " << smoothedFlowPerMin << " Trips/min" << '\n'
              << "Avg Speed: " << smoothedAvgSpeed << " px/s" << '\n'
+             << "Avg travel time: " << stats.meanTravelTime() << " s" << '\n'
+             << "Avg delay: " << stats.meanDelay() << " s" << '\n'
              << "Boost: " << constants::boost << '\n'
+             << "Demand: " << constants::demand << " Vehicles/min" << '\n'
              << "Max Vehicles: " << constants::nbVehicleMax << '\n'
-             << "Method: " << methods[constants::learningType] << '\n'
+             << "Method: " << controllerName(constants::controllerType) << '\n'
              << "State: " << (isPaused ? "PAUSED" : "PLAYING") << '\n'
              << "===================================" << std::endl;
 }
 
-void Network::processMetrics(double currentTime,
-                             double& lastTime,
-                             int& lastCompletedVehicles,
-                             double& smoothedFlowPerMin,
-                             bool& isFirstFlowMeas,
-                             int& nbFrames,
-                             int& lastFPS) {
+void Network::processMetrics(double currentTime, double& lastTime, int& nbFrames, int& lastFPS) {
    if (currentTime - lastTime >= 1.0) { // If last print was more than 1 sec ago
       lastFPS = nbFrames;
       nbFrames = 0;
-      if (!isPaused) {
-         double deltaTimeMinutes = (currentTime - lastTime) / 60.0;
-         double instantFlowPerMin =
-             (deltaTimeMinutes > 0.0)
-                 ? ((completedVehicles - lastCompletedVehicles) / deltaTimeMinutes) /
-                       constants::boost
-                 : 0.0;
-         if (isFirstFlowMeas) {
-            smoothedFlowPerMin = instantFlowPerMin;
-            isFirstFlowMeas = false;
-         } else {
-            smoothedFlowPerMin = 0.8 * smoothedFlowPerMin + 0.2 * instantFlowPerMin;
-         }
-      }
-      lastCompletedVehicles = completedVehicles;
       lastTime = currentTime;
+      // Flow over the simulated time, so it does not depend on the boost nor on the frame rate
+      const double deltaTimeMinutes = (simulationTime - lastFlowTime) / 60.0;
+      if (deltaTimeMinutes > 0.0) {
+         const double instantFlowPerMin = (completedVehicles - lastFlowCompleted) / deltaTimeMinutes;
+         smoothedFlowPerMin = lastFlowTime == 0.0 ? instantFlowPerMin
+                                                  : 0.8 * smoothedFlowPerMin + 0.2 * instantFlowPerMin;
+         lastFlowCompleted = completedVehicles;
+         lastFlowTime = simulationTime;
+      }
    }
 }
 
-void Network::renderControlPanel(double smoothedFlowPerMin,
-                                 double& smoothedAvgSpeed,
-                                 int lastFPS,
-                                 double& lastPrintTime,
-                                 double elapsedSimulationMinutes,
-                                 double currentTime) {
+void Network::renderControlPanel(int lastFPS, double& lastPrintTime, double currentTime) {
    ImGui_ImplOpenGL2_NewFrame();
    ImGui_ImplGlfw_NewFrame();
    ImGui::NewFrame();
@@ -247,7 +266,7 @@ void Network::renderControlPanel(double smoothedFlowPerMin,
    ImGui::Begin("Simulation Control", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
    ImGui::Text("Metrics");
    ImGui::Text("%d Intersections ", constants::nbIntersections);
-   ImGui::Text("%d Vehicles", global::numberOfVehicles);
+   ImGui::Text("%d Vehicles (+%d waiting to enter)", getVehicleCount(), getWaitingVehicleCount());
    ImGui::Text("%.2f Flow (Trips/min)", smoothedFlowPerMin);
 
    double totalSpeed = 0.0;
@@ -257,7 +276,7 @@ void Network::renderControlPanel(double smoothedFlowPerMin,
 
    const double numVehicles = std::max(1.0, static_cast<double>(Vehicles.size()));
    const double avgSpeed = totalSpeed / numVehicles; // Grid units per simulation step
-   const double instantAvgSpeedPxPerSec = avgSpeed / timeStep * constants::ratioX / constants::boost;
+   const double instantAvgSpeedPxPerSec = avgSpeed / timeStep * constants::ratioX;
 
    if (Vehicles.empty()) {
       smoothedAvgSpeed = 0.0;
@@ -267,14 +286,14 @@ void Network::renderControlPanel(double smoothedFlowPerMin,
       smoothedAvgSpeed = 0.98 * smoothedAvgSpeed + 0.02 * instantAvgSpeedPxPerSec;
    }
 
-   if (smoothedAvgSpeed > 0) {
-      ImGui::Text("%.2f Average Speed (px/s)", smoothedAvgSpeed);
-   } else {
-      ImGui::Text("0.00 Average Speed (px/s)");
-   }
+   ImGui::Text("%.2f Average Speed (px/s)", smoothedAvgSpeed);
+   ImGui::Text("%.1f Average travel time (s)", stats.meanTravelTime());
+   ImGui::Text("%.1f Average delay (s)", stats.meanDelay());
+   ImGui::Text("%.1f Vehicles waiting", stats.meanQueue());
+   ImGui::Text("%.1f Simulated minutes", simulationTime / 60.0);
 
    if (currentTime - lastPrintTime >= 5.0) {
-      printTerminalOutput(smoothedFlowPerMin, smoothedAvgSpeed, lastFPS, elapsedSimulationMinutes);
+      printTerminalOutput(smoothedFlowPerMin, smoothedAvgSpeed, lastFPS, simulationTime / 60.0);
       lastPrintTime = currentTime;
    }
 
@@ -283,31 +302,36 @@ void Network::renderControlPanel(double smoothedFlowPerMin,
    // Parameters
    ImGui::Separator();
    ImGui::Text("Parameters");
-   float temp = static_cast<float>(constants::boost);
-   if (ImGui::SliderFloat("Boost", &temp, 0.1f, 100.0f)) {
-      constants::boost = static_cast<double>(temp);
-      constants::updateBoostDependentConstants();
+   float boost = static_cast<float>(constants::boost);
+   if (ImGui::SliderFloat("Boost", &boost, 0.1f, 100.0f, "%.1f", ImGuiSliderFlags_Logarithmic)) {
+      constants::boost = static_cast<double>(boost);
    }
-   ImGui::SliderInt("Max number vehicle", &constants::nbVehicleMax, 0, 100);
+   float demand = static_cast<float>(constants::demand);
+   if (ImGui::SliderFloat("Demand (vehicles/min)", &demand, 0.0f, 600.0f, "%.0f")) {
+      constants::demand = static_cast<double>(demand);
+   }
+   ImGui::SliderInt("Max number vehicle", &constants::nbVehicleMax, 0, 300);
 
-   int currentMethodIndex = static_cast<int>(constants::learningType);
-   if (ImGui::Combo("Operating Method", &currentMethodIndex,
-                    "Q-Learning\0DQN (Neural Network)\0Heuristic\0")) {
-      constants::learningType = static_cast<LearningType>(currentMethodIndex);
-
-      std::shared_ptr<IntersectionOperator> ops[] = {qLearningOp, deepRLOp, nullptr};
-      globalOperator = ops[currentMethodIndex];
-
-      for (const auto& i : Intersections) {
-         if (i)
-            i->setOperator(globalOperator);
-      }
+   int currentMethodIndex = static_cast<int>(constants::controllerType);
+   if (ImGui::Combo("Traffic lights", &currentMethodIndex,
+                    "Random\0Fixed cycle\0Heuristic\0Max pressure\0Q-Learning\0DQN (Neural Network)\0")) {
+      setController(static_cast<ControllerType>(currentMethodIndex));
+      resetStats(); // The averages describe the selected controller
+   }
+   if (globalOperator && (constants::controllerType == ControllerType::Q_LEARNING ||
+                          constants::controllerType == ControllerType::DQN)) {
+      ImGui::Text(globalOperator->isLearning() ? "Learning from scratch (no trained model found)"
+                                               : "Trained model");
    }
 
    ImGui::Separator();
    const char* playPauseLabels[] = {"Pause", "Play"};
    if (ImGui::Button(playPauseLabels[isPaused])) {
       isPaused = !isPaused;
+   }
+   ImGui::SameLine();
+   if (ImGui::Button("Reset metrics")) {
+      resetStats();
    }
    ImGui::End();
 }
@@ -318,11 +342,16 @@ void Network::step() {
       if (r)
          map.updateConnection(r);
    }
-   addVehicle();
+   generateDemand();
+   addVehicles();
    updateVehiclesPosition();
    Vehicles.remove_if([this](const std::shared_ptr<Vehicle>& v) {
       if (v->getStatus()) {
          completedVehicles++;
+         stats.completed++;
+         stats.travelTimes.push_back(
+             static_cast<float>(simulationTime + timeStep - v->getCreationTime()));
+         stats.freeFlowTime += v->getFreeFlowTime();
          return true; // Remove the vehicle
       }
       return false; // Keep the vehicle
@@ -331,8 +360,35 @@ void Network::step() {
    // Intersections
    for (const auto& i : Intersections) {
       if (i)
-         i->update(simulationTime); // Update RL/Heuristic logic
+         i->update(simulationTime); // Traffic light decisions
    }
+   updateStats();
+}
+
+void Network::updateStats() {
+   stats.duration += timeStep;
+   stats.timeSpent += timeStep * static_cast<double>(Vehicles.size() + waitingTrips.size());
+   stats.timeInNetwork += timeStep * static_cast<double>(Vehicles.size());
+   for (const auto& v : Vehicles) {
+      stats.relativeSpeedTime += timeStep * v->getSpeed() / v->getSpeedMax();
+   }
+   for (const auto& r : Roads) {
+      const int queue = r->getQueueLength();
+      stats.timeWaiting += timeStep * queue;
+      stats.maxQueue = std::max(stats.maxQueue, queue);
+   }
+}
+
+const TrafficStats& Network::getStats() const {
+   return stats;
+}
+
+void Network::resetStats() {
+   stats = TrafficStats();
+}
+
+int Network::getWaitingVehicleCount() const {
+   return static_cast<int>(waitingTrips.size());
 }
 
 void Network::render() const {
@@ -392,10 +448,6 @@ void Network::displayNetwork(int maxFrames /*Used by tests*/) {
    double lastPrintTime = lastTime;
    double previousFrameTime = lastTime;
    double accumulator = 0.0;
-   int lastCompletedVehicles = 0;
-   double smoothedFlowPerMin = 0.0;
-   double smoothedAvgSpeed = 0.0;
-   bool isFirstFlowMeas = true;
    int nbFrames = 0;
    int lastFPS = 0;
    int totalLoopFrames = 0;
@@ -406,16 +458,16 @@ void Network::displayNetwork(int maxFrames /*Used by tests*/) {
       const double currentTime = glfwGetTime();
       nbFrames++;
 
-      processMetrics(currentTime, lastTime, lastCompletedVehicles, smoothedFlowPerMin,
-                     isFirstFlowMeas, nbFrames, lastFPS);
+      processMetrics(currentTime, lastTime, nbFrames, lastFPS);
 
-      renderControlPanel(smoothedFlowPerMin, smoothedAvgSpeed, lastFPS, lastPrintTime,
-                         simulationTime / 60.0, currentTime);
+      renderControlPanel(lastFPS, lastPrintTime, currentTime);
 
       // Fixed time step: the simulation advances at the same pace whatever the frame rate.
+      // The boost only changes the number of steps per frame, so the model (and what the
+      // controllers learn) is the same at any boost.
       // The frame time is capped so a slow frame (window dragged, breakpoint...) does not
       // trigger a burst of catch-up steps.
-      accumulator += std::min(currentTime - previousFrameTime, 0.25);
+      accumulator += std::min(currentTime - previousFrameTime, 0.25) * constants::boost;
       previousFrameTime = currentTime;
       if (isPaused) {
          accumulator = 0.0;
@@ -424,9 +476,13 @@ void Network::displayNetwork(int maxFrames /*Used by tests*/) {
       if (maxFrames > 0 && !isPaused) {
          accumulator = std::max(accumulator, timeStep);
       }
+      constexpr double maxComputeTime = 0.05; // Seconds per frame: keep the window responsive
       while (accumulator >= timeStep) {
          step();
          accumulator -= timeStep;
+         if (maxFrames == 0 && glfwGetTime() - currentTime > maxComputeTime) {
+            accumulator = 0.0; // Too slow for this boost: run as fast as possible
+         }
       }
 
       // Clear the screen
@@ -448,43 +504,72 @@ void Network::displayNetwork(int maxFrames /*Used by tests*/) {
    glfwTerminate();
 }
 
-void Network::addVehicle() {
-   // To Do: add check target
-   auto target = [&](const int idStart) {
-      int destination;
-      do {
-         destination = rand() % constants::nbIntersections;
-      } while (destination == idStart);
-      return Intersections[destination].get();
-   };
-   if (static_cast<int>(Vehicles.size()) >= constants::nbVehicleMax)
+void Network::generateDemand() {
+   if (constants::demand <= 0.0) {
+      nextArrivalTime = -1.0;
       return;
-   for (const auto& r : Roads) {
-      if (!r || rand() % 100 >= constants::flow)
-         continue;
-      Intersection* destination = target(r->getEnd()->getID());
-      const std::list<Road*> itinerary = map.track(r->getEnd(), destination);
-      // Random vehicle type
+   }
+   // Poisson arrivals: the time between 2 vehicles follows an exponential law.
+   const double rate = constants::demand / 60.0; // Vehicles per second
+   if (nextArrivalTime < 0.0 || arrivalDemand != constants::demand) {
+      nextArrivalTime = simulationTime + rnd::exponential(demandRng, rate);
+      arrivalDemand = constants::demand;
+   }
+   while (nextArrivalTime <= simulationTime) {
+      // Random trip: from the start of a road to another intersection (not the end of this
+      // road either: the trip would be this road only... or a U-turn back to its start)
+      Road* origin = Roads[rnd::index(demandRng, static_cast<int>(Roads.size()))].get();
+      const int first = std::min(origin->getStart()->getID(), origin->getEnd()->getID());
+      const int second = std::max(origin->getStart()->getID(), origin->getEnd()->getID());
+      int destination = rnd::index(demandRng, constants::nbIntersections - 2);
+      if (destination >= first)
+         destination++;
+      if (destination >= second)
+         destination++;
+      const int vehicleType = rnd::index(demandRng, 3);
+      stats.generated++;
+      if (static_cast<int>(waitingTrips.size()) < constants::nbWaitingVehicleMax)
+         waitingTrips.push_back({nextArrivalTime, origin, Intersections[destination].get(), vehicleType});
+      else
+         stats.rejected++;
+      nextArrivalTime += rnd::exponential(demandRng, rate);
+   }
+}
+
+void Network::addVehicles() {
+   for (auto trip = waitingTrips.begin(); trip != waitingTrips.end();) {
+      if (static_cast<int>(Vehicles.size()) >= constants::nbVehicleMax)
+         break;
+      Road* r = trip->origin;
+      const Intersection* start = r->getStart();
+      const Intersection* end = r->getEnd();
       std::shared_ptr<Vehicle> v;
-      switch (rand() % 3) {
+      switch (trip->vehicleType) {
       case 0:
-         v = std::make_shared<Car>(r->getStart(), r->getEnd(), nextVehicleId, destination, itinerary);
+         v = std::make_shared<Car>(start, end, nextVehicleId, trip->destination, std::list<Road*>{});
          break;
       case 1:
-         v = std::make_shared<Bike>(r->getStart(), r->getEnd(), nextVehicleId, destination, itinerary);
+         v = std::make_shared<Bike>(start, end, nextVehicleId, trip->destination, std::list<Road*>{});
          break;
       default:
-         v = std::make_shared<Truck>(r->getStart(), r->getEnd(), nextVehicleId, destination, itinerary);
+         v = std::make_shared<Truck>(start, end, nextVehicleId, trip->destination, std::list<Road*>{});
          break;
       }
-      if (!r->canEnter(*v))
-         continue; // No room at the start of the road
+      if (!r->canEnter(*v)) {
+         ++trip; // No room at the start of the road: keep waiting
+         continue;
+      }
+      const std::list<Road*> itinerary = map.track(end, trip->destination, r);
+      double tripLength = r->getLength();
+      for (const Road* next : itinerary)
+         tripLength += next->getLength();
+      v->setNewItinerary(itinerary);
+      v->setTrip(trip->creationTime, tripLength / v->getSpeedMax() * timeStep);
       nextVehicleId++;
       Vehicles.push_back(v);
       r->addVehicle(v);
-      global::numberOfVehicles += 1;
-      if (static_cast<int>(Vehicles.size()) >= constants::nbVehicleMax)
-         break;
+      stats.entered++;
+      trip = waitingTrips.erase(trip);
    }
 }
 

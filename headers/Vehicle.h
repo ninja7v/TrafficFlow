@@ -91,9 +91,31 @@ public:
    /** @brief Getter.
     * @return Vehicle type */
    virtual bool is2Wheeler() const = 0;
+   /** @brief Is the vehicle waiting (almost stopped)?
+    * @return Waiting? */
+   bool isWaiting() const;
+   /** @brief Count one simulation step in the waiting times if the vehicle is waiting. */
+   void updateWaitingTime();
+   /** @brief Stop the vehicle (blocked). */
+   void stop();
    /** @brief Getter.
-    * @return Time when vehicle entered current road */
-   clock_t getEnterRoadTime() const;
+    * @return Time spent waiting since the vehicle entered the network, in seconds */
+   double getWaitingTime() const;
+   /** @brief Getter.
+    * @return Time spent waiting on the current road, in seconds */
+   double getRoadWaitingTime() const;
+   /** @brief Forget the time spent waiting on the previous road. */
+   void resetRoadWaitingTime();
+   /** @brief Getter.
+    * @return Simulation time at which the vehicle was generated, in seconds */
+   double getCreationTime() const;
+   /** @brief Getter.
+    * @return Duration of the trip without any traffic nor traffic light, in seconds */
+   double getFreeFlowTime() const;
+   /** @brief Setter. Describe the trip for the statistics.
+    * @param creationTime Simulation time at which the vehicle was generated, in seconds
+    * @param freeFlowTime Duration of the trip without any traffic nor traffic light, in seconds */
+   void setTrip(double creationTime, double freeFlowTime);
    /** @brief Setter. */
    void setDirection(const Intersection* i);
    /** @brief Setter. */
@@ -102,8 +124,6 @@ public:
    void setNewItinerary(const std::list<Road*> track);
    /** @brief Setter. */
    void setStatus(const bool arrived);
-   /** @brief Setter. */
-   void setEnterRoadTime(clock_t t);
 
 private:
    /** Vehicle ID. */
@@ -112,7 +132,7 @@ private:
    bool isArrived;
    /** Vehicle is braking */
    bool isBraking;
-   /** Vehicle speed in pixel per second. */
+   /** Vehicle speed in grid unit per step. */
    double speed;
    /** Vehicle destination. */
    Intersection* destination;
@@ -122,6 +142,12 @@ private:
    std::array<double, 2> direction;
    /** Vehicle itinerary. */
    std::list<Road*> itinerary;
-   /** Time when vehicle entered current road. */
-   clock_t enterRoadTime;
+   /** Time spent waiting since the vehicle entered the network, in seconds. */
+   double waitingTime = 0.0;
+   /** Time spent waiting on the current road, in seconds. */
+   double roadWaitingTime = 0.0;
+   /** Simulation time at which the vehicle was generated, in seconds. */
+   double creationTime = 0.0;
+   /** Duration of the trip without any traffic nor traffic light, in seconds. */
+   double freeFlowTime = 0.0;
 };
